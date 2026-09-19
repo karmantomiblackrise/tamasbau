@@ -23,6 +23,12 @@ function app_url(string $path = ''): string
 
 function redirect(string $path): void
 {
+    if (str_contains($path, '?')) {
+        [$cleanPath, $query] = explode('?', $path, 2);
+        header('Location: ' . app_url($cleanPath) . '?' . $query);
+        exit;
+    }
+
     header('Location: ' . app_url($path));
     exit;
 }

@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo = db();
 
             if (!table_exists($pdo, 'users')) {
-                $error = 'Hiányzó users tábla az adatbázisban.';
+                $error = 'Bejelentkezés sikertelen. Részletekért futtasd a setup-check diagnosztikát.';
             } else {
                 $requiredColumns = ['username', 'password_hash', 'role', 'is_active'];
                 $missingColumns = [];
@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 if ($missingColumns) {
-                    $error = 'A users tábla nem kompatibilis, hiányzó mezők: ' . implode(', ', $missingColumns) . '.';
+                    $error = 'Bejelentkezés sikertelen. Részletekért futtasd a setup-check diagnosztikát.';
                 } else {
                     $user = find_user_by_username($pdo, $username);
 

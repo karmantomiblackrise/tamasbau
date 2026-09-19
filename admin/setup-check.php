@@ -5,8 +5,10 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 
 $healthcheckKeyConfigured = strlen(HEALTHCHECK_KEY) >= 24;
-$providedKey = (string) ($_POST['healthcheck_key'] ?? '');
-$authorized = $healthcheckKeyConfigured && $providedKey !== '' && hash_equals(HEALTHCHECK_KEY, $providedKey);
+$viewKey = (string) ($_GET['key'] ?? '');
+$postKey = (string) ($_POST['healthcheck_key'] ?? '');
+$viewAuthorized = is_admin_user() || ($healthcheckKeyConfigured && $viewKey !== '' && hash_equals(HEALTHCHECK_KEY, $viewKey));
+$authorized = $viewAuthorized && $healthcheckKeyConfigured && $postKey !== '' && hash_equals(HEALTHCHECK_KEY, $postKey);
 $wantsRepair = ($_SERVER['REQUEST_METHOD'] === 'POST')
     && (string) ($_POST['mode'] ?? '') === 'repair'
     && (string) ($_POST['confirm'] ?? '') === 'YES';
@@ -15,34 +17,39 @@ $checks = [];
 $usersSchemaCompatible = false;
 
 try {
-    $pdo = db();
-    $checks[] = ['Adatbázis kapcsolat', 'OK'];
+    if ($viewAuthorized) {
+        $pdo = db();
+        $checks[] = ['Adatbázis kapcsolat', 'OK'];
 
-    $usersExists = table_exists($pdo, 'users');
-    $checks[] = ['users tábla', $usersExists ? 'OK' : 'Hiányzik'];
+        $usersExists = table_exists($pdo, 'users');
+        $checks[] = ['users tábla', $usersExists ? 'OK' : 'Hiányzik'];
 
-    if ($usersExists) {
-        $requiredColumns = ['username', 'password_hash', 'role', 'is_active'];
-        $missingColumns = [];
-        foreach ($requiredColumns as $column) {
-            if (!column_exists($pdo, 'users', $column)) {
-                $missingColumns[] = $column;
+        if ($usersExists) {
+            $requiredColumns = ['username', 'password_hash', 'role', 'is_active'];
+            $missingColumns = [];
+            foreach ($requiredColumns as $column) {
+                if (!column_exists($pdo, 'users', $column)) {
+                    $missingColumns[] = $column;
+                }
             }
-        }
 
-        if ($missingColumns) {
-            $checks[] = ['users mezők', 'Hiányzó mezők: ' . implode(', ', $missingColumns)];
-            $adminCount = 0;
-            $usersSchemaCompatible = false;
+            if ($missingColumns) {
+                $checks[] = ['users mezők', 'Hiányzó mezők: ' . implode(', ', $missingColumns)];
+                $adminCount = 0;
+                $usersSchemaCompatible = false;
+            } else {
+                $checks[] = ['users mezők', 'OK'];
+                $adminCount = (int) $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn();
+                $checks[] = ['Admin rekord', $adminCount > 0 ? 'OK' : 'Hiányzik'];
+                $usersSchemaCompatible = true;
+            }
         } else {
-            $checks[] = ['users mezők', 'OK'];
-            $adminCount = (int) $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn();
-            $checks[] = ['Admin rekord', $adminCount > 0 ? 'OK' : 'Hiányzik'];
+            $adminCount = 0;
             $usersSchemaCompatible = true;
         }
     } else {
+        $checks[] = ['Hozzáférés', 'A diagnosztikai részletek megtekintéséhez kulcs vagy admin jogosultság szükséges.'];
         $adminCount = 0;
-        $usersSchemaCompatible = true;
     }
 
     if ($authorized && $wantsRepair && csrf_validate($_POST['csrf_token'] ?? null)) {
@@ -152,7 +159,7 @@ try {
             </fieldset>
             <button class="btn" type="submit" style="margin-top:10px;">Helyreállítás futtatása</button>
         </form>
-        <p class="helper" style="margin-top:10px;">A helyreállítás futtatásához add meg a `config.php` fájlban beállított HEALTHCHECK kulcsot.</p>
+        <p class="helper" style="margin-top:10px;">A helyreállítás futtatásához add meg a `config.php` fájlban beállított HEALTHCHECK kulcsot. Diagnosztikához: <code>?key=SAJAT_KULCS</code></p>
     </div>
 </main>
 </body>
