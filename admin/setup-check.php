@@ -7,6 +7,12 @@ require_once dirname(__DIR__) . '/includes/bootstrap.php';
 $providedKey = (string) ($_GET['key'] ?? '');
 $healthcheckKeyConfigured = strlen(HEALTHCHECK_KEY) >= 24;
 $authorized = $healthcheckKeyConfigured && $providedKey !== '' && hash_equals(HEALTHCHECK_KEY, $providedKey);
+$sessionAuthorized = !empty($_SESSION['setup_check_authorized']);
+
+if ($authorized) {
+    $_SESSION['setup_check_authorized'] = true;
+    $sessionAuthorized = true;
+}
 $wantsRepair = ($_SERVER['REQUEST_METHOD'] === 'POST')
     && (string) ($_POST['mode'] ?? '') === 'repair'
     && (string) ($_POST['confirm'] ?? '') === 'YES';
@@ -45,7 +51,7 @@ try {
         $usersSchemaCompatible = true;
     }
 
-    if ($authorized && $wantsRepair && csrf_validate($_POST['csrf_token'] ?? null)) {
+    if ($sessionAuthorized && $wantsRepair && csrf_validate($_POST['csrf_token'] ?? null)) {
         if (!$usersSchemaCompatible) {
             $messages[] = ['error', 'A users tábla szerkezete nem kompatibilis. Futtass teljes schema importot a helyreállítás előtt.'];
             throw new RuntimeException('Inkompatibilis users séma');
@@ -62,6 +68,12 @@ try {
             throw new RuntimeException('Létező admin felülírás tiltva');
         }
 
+        $adminUsernameExists = (int) $pdo->query("SELECT COUNT(*) FROM users WHERE username = 'admin'")->fetchColumn() > 0;
+        if ($adminUsernameExists) {
+            $messages[] = ['error', 'Már létezik admin felhasználónév, de nincs admin szerepkör. Ez manuális felülvizsgálatot igényel.'];
+            throw new RuntimeException('Inkonzisztens admin rekord');
+        }
+
         $pdo->beginTransaction();
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS users (
@@ -76,19 +88,18 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
         $seedStmt = $pdo->prepare("INSERT INTO users (username, password_hash, role, is_active)
-            VALUES ('admin', :password_hash, 'admin', 1)
-            ON DUPLICATE KEY UPDATE
-                username = VALUES(username)");
+            VALUES ('admin', :password_hash, 'admin', 1)");
         $seedStmt->execute([
             'password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
         ]);
 
         $pdo->commit();
+        unset($_SESSION['setup_check_authorized']);
         app_log('setup-check helyreállítás futtatva: hiányzó admin rekord létrehozva.');
         $messages[] = ['success', 'Helyreállítás lefutott. Az admin rekord létrehozva a megadott jelszóval.'];
-    } elseif ($authorized && $wantsRepair) {
+    } elseif ($sessionAuthorized && $wantsRepair) {
         $messages[] = ['error', 'CSRF vagy session hiba: a helyreállítás nem futott le.'];
-    } elseif ($wantsRepair && !$authorized) {
+    } elseif ($wantsRepair && !$sessionAuthorized) {
         $messages[] = ['error', 'Helyreállításhoz érvényes kulcs szükséges.'];
     }
 
@@ -134,7 +145,7 @@ try {
     <div class="form-card" style="margin-top:16px;">
         <h2>Biztonságos helyreállítás</h2>
         <p class="helper">Csak akkor futtasd, ha biztosan friss telepítésen dolgozol és helyre kell állítani az admin alaprekordot.</p>
-        <form method="post" action="<?= h(app_url('admin/setup-check.php') . ($providedKey !== '' ? '?key=' . urlencode($providedKey) : '')) ?>">
+        <form method="post" action="<?= h(app_url('admin/setup-check.php')) ?>">
             <input type="hidden" name="mode" value="repair">
             <input type="hidden" name="csrf_token" value="<?= h(csrf_token()) ?>">
             <label for="new_password">Új admin jelszó (min. 12 karakter)</label>
@@ -143,7 +154,7 @@ try {
             <input id="confirm" name="confirm" type="text" required>
             <button class="btn" type="submit" style="margin-top:10px;">Helyreállítás futtatása</button>
         </form>
-        <?php if (!$authorized): ?>
+        <?php if (!$sessionAuthorized): ?>
             <p class="helper" style="margin-top:10px;">Nincs érvényes kulcs. Használat: <code>?key=SAJAT_KULCS</code></p>
         <?php endif; ?>
     </div>

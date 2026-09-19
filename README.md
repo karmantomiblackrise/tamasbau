@@ -60,9 +60,10 @@ A diagnosztika nem ír ki DB jelszót vagy titkos konfigurációs értéket.
 A login oldal konkrét, magyar hibákat ad:
 - adatbázis kapcsolat hiba
 - hiányzó `users` tábla
-- hiányzó admin rekord
 - hibás adatok
 - CSRF/session hiba
+
+Hiányzó admin rekord diagnosztikája és helyreállítása a `setup-check.php` oldalon történik.
 
 ## 7) Biztonsági elemek
 - Minden admin oldal auth-gated (`require_admin()`).
