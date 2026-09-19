@@ -32,8 +32,8 @@ A gyökérben lévő `config.php` fájlban töltsd ki a saját adatokat:
 3. Az SQL a szükséges táblákat hozza létre.
 
 ## 4) Alap admin belépés (friss telepítés)
-1. Nyisd meg: `/admin/setup-check.php?key=SAJAT_HEALTHCHECK_KEY`
-2. A helyreállításnál írd be: `YES`
+1. Nyisd meg: `/admin/setup-check.php`
+2. Add meg a `HEALTHCHECK_KEY` értékét és írd be: `YES`
 3. Adj meg egy új admin jelszót (minimum 12 karakter)
 4. Lépj be: `/admin/login.php` (felhasználónév: `admin`)
 5. Azonnal jelszócsere: `Admin → Rendszer/Fiók → Jelszócsere`
@@ -42,7 +42,7 @@ A gyökérben lévő `config.php` fájlban töltsd ki a saját adatokat:
 - Diagnosztika: `/admin/setup-check.php`
 - Alapértelmezésben csak ellenőriz (DB kapcsolat, `users` tábla, admin rekord).
 - Javítás futtatása csak explicit módon:
-  - érvényes kulcs (`?key=...`), és
+  - érvényes HEALTHCHECK kulcs, és
   - POST megerősítés `confirm=YES`.
 
 A helyreállítás kizárólag hiányzó admin rekord esetén hoz létre új `admin` felhasználót a megadott jelszóval, és naplóz:

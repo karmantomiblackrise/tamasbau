@@ -10,12 +10,7 @@ function fetch_recent_rows(PDO $pdo, string $table, array $fields): array
 
     $safeFields = array_map(static fn ($field) => '`' . str_replace('`', '', $field) . '`', $fields);
     $sql = sprintf('SELECT %s FROM `%s` ORDER BY id DESC LIMIT 10', implode(', ', $safeFields), str_replace('`', '', $table));
-
-    try {
-        return $pdo->query($sql)->fetchAll() ?: [];
-    } catch (Throwable $e) {
-        return [];
-    }
+    return $pdo->query($sql)->fetchAll() ?: [];
 }
 
 function render_module_table(array $headers, array $rows): void

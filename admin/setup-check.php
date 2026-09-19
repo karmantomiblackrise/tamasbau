@@ -4,15 +4,9 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 
-$providedKey = (string) ($_GET['key'] ?? '');
 $healthcheckKeyConfigured = strlen(HEALTHCHECK_KEY) >= 24;
+$providedKey = (string) ($_POST['healthcheck_key'] ?? '');
 $authorized = $healthcheckKeyConfigured && $providedKey !== '' && hash_equals(HEALTHCHECK_KEY, $providedKey);
-$sessionAuthorized = !empty($_SESSION['setup_check_authorized']);
-
-if ($authorized) {
-    $_SESSION['setup_check_authorized'] = true;
-    $sessionAuthorized = true;
-}
 $wantsRepair = ($_SERVER['REQUEST_METHOD'] === 'POST')
     && (string) ($_POST['mode'] ?? '') === 'repair'
     && (string) ($_POST['confirm'] ?? '') === 'YES';
@@ -51,7 +45,7 @@ try {
         $usersSchemaCompatible = true;
     }
 
-    if ($sessionAuthorized && $wantsRepair && csrf_validate($_POST['csrf_token'] ?? null)) {
+    if ($authorized && $wantsRepair && csrf_validate($_POST['csrf_token'] ?? null)) {
         if (!$usersSchemaCompatible) {
             $messages[] = ['error', 'A users tábla szerkezete nem kompatibilis. Futtass teljes schema importot a helyreállítás előtt.'];
             throw new RuntimeException('Inkompatibilis users séma');
@@ -94,13 +88,12 @@ try {
         ]);
 
         $pdo->commit();
-        unset($_SESSION['setup_check_authorized']);
         app_log('setup-check helyreállítás futtatva: hiányzó admin rekord létrehozva.');
         $messages[] = ['success', 'Helyreállítás lefutott. Az admin rekord létrehozva a megadott jelszóval.'];
-    } elseif ($sessionAuthorized && $wantsRepair) {
-        $messages[] = ['error', 'CSRF vagy session hiba: a helyreállítás nem futott le.'];
-    } elseif ($wantsRepair && !$sessionAuthorized) {
+    } elseif ($wantsRepair && !$authorized) {
         $messages[] = ['error', 'Helyreállításhoz érvényes kulcs szükséges.'];
+    } elseif ($wantsRepair) {
+        $messages[] = ['error', 'CSRF vagy session hiba: a helyreállítás nem futott le.'];
     }
 
     if (!$healthcheckKeyConfigured) {
@@ -148,15 +141,15 @@ try {
         <form method="post" action="<?= h(app_url('admin/setup-check.php')) ?>">
             <input type="hidden" name="mode" value="repair">
             <input type="hidden" name="csrf_token" value="<?= h(csrf_token()) ?>">
+            <label for="healthcheck_key">HEALTHCHECK kulcs</label>
+            <input id="healthcheck_key" name="healthcheck_key" type="password" required>
             <label for="new_password">Új admin jelszó (min. 12 karakter)</label>
             <input id="new_password" name="new_password" type="password" minlength="12" required>
             <label for="confirm">Írd be: YES</label>
             <input id="confirm" name="confirm" type="text" required>
             <button class="btn" type="submit" style="margin-top:10px;">Helyreállítás futtatása</button>
         </form>
-        <?php if (!$sessionAuthorized): ?>
-            <p class="helper" style="margin-top:10px;">Nincs érvényes kulcs. Használat: <code>?key=SAJAT_KULCS</code></p>
-        <?php endif; ?>
+        <p class="helper" style="margin-top:10px;">A helyreállítás futtatásához add meg a `config.php` fájlban beállított HEALTHCHECK kulcsot.</p>
     </div>
 </main>
 </body>

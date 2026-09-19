@@ -52,8 +52,16 @@ function flash_get(): ?array
 function app_log(string $message): void
 {
     $logPath = dirname(__DIR__) . '/logs/admin-recovery.log';
+    $logDir = dirname($logPath);
+    if (!is_dir($logDir) && !mkdir($logDir, 0755, true) && !is_dir($logDir)) {
+        error_log('Nem sikerült létrehozni a napló könyvtárat: ' . $logDir);
+        return;
+    }
+
     $line = sprintf("[%s] %s\n", date('Y-m-d H:i:s'), $message);
-    @file_put_contents($logPath, $line, FILE_APPEND);
+    if (file_put_contents($logPath, $line, FILE_APPEND) === false) {
+        error_log('Nem sikerült admin recovery naplót írni: ' . $logPath);
+    }
 }
 
 function table_exists(PDO $pdo, string $tableName): bool

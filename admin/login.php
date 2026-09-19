@@ -38,24 +38,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($missingColumns) {
                     $error = 'A users tábla nem kompatibilis, hiányzó mezők: ' . implode(', ', $missingColumns) . '.';
                 } else {
-                $adminCountStmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin' LIMIT 1");
-                $adminCount = (int) $adminCountStmt->fetchColumn();
+                $user = find_user_by_username($pdo, $username);
 
-                if ($adminCount < 1) {
+                if (
+                    !$user
+                    || !password_verify($password, $user['password_hash'])
+                    || (int) $user['is_active'] !== 1
+                    || $user['role'] !== 'admin'
+                ) {
                     $error = 'Hibás felhasználónév vagy jelszó.';
                 } else {
-                    $user = find_user_by_username($pdo, $username);
+                    login_user($user);
+                    $updateLogin = $pdo->prepare('UPDATE users SET last_login_at = NOW() WHERE id = :id');
+                    $updateLogin->execute(['id' => (int) $user['id']]);
 
-                    if (!$user || (int) $user['is_active'] !== 1 || !password_verify($password, $user['password_hash'])) {
-                        $error = 'Hibás felhasználónév vagy jelszó.';
-                    } else {
-                        login_user($user);
-                        $updateLogin = $pdo->prepare('UPDATE users SET last_login_at = NOW() WHERE id = :id');
-                        $updateLogin->execute(['id' => (int) $user['id']]);
-
-                        flash_set('success', 'Sikeres bejelentkezés.');
-                        redirect('admin/dashboard.php');
-                    }
+                    flash_set('success', 'Sikeres bejelentkezés.');
+                    redirect('admin/dashboard.php');
                 }
                 }
             }
