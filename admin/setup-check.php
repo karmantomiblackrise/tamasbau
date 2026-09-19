@@ -5,7 +5,8 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 
 $providedKey = (string) ($_GET['key'] ?? '');
-$authorized = $providedKey !== '' && hash_equals(HEALTHCHECK_KEY, $providedKey);
+$isDefaultHealthcheckKey = HEALTHCHECK_KEY === 'csereld_le_egy_hosszu_veletlen_kulcsra';
+$authorized = !$isDefaultHealthcheckKey && $providedKey !== '' && hash_equals(HEALTHCHECK_KEY, $providedKey);
 $wantsRepair = ($_SERVER['REQUEST_METHOD'] === 'POST')
     && (string) ($_POST['mode'] ?? '') === 'repair'
     && (string) ($_POST['confirm'] ?? '') === 'YES';
@@ -22,8 +23,22 @@ try {
     $checks[] = ['users tábla', $usersExists ? 'OK' : 'Hiányzik'];
 
     if ($usersExists) {
-        $adminCount = (int) $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn();
-        $checks[] = ['Admin rekord', $adminCount > 0 ? 'OK' : 'Hiányzik'];
+        $requiredColumns = ['username', 'password_hash', 'role', 'is_active'];
+        $missingColumns = [];
+        foreach ($requiredColumns as $column) {
+            if (!column_exists($pdo, 'users', $column)) {
+                $missingColumns[] = $column;
+            }
+        }
+
+        if ($missingColumns) {
+            $checks[] = ['users mezők', 'Hiányzó mezők: ' . implode(', ', $missingColumns)];
+            $adminCount = 0;
+        } else {
+            $checks[] = ['users mezők', 'OK'];
+            $adminCount = (int) $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn();
+            $checks[] = ['Admin rekord', $adminCount > 0 ? 'OK' : 'Hiányzik'];
+        }
     } else {
         $adminCount = 0;
     }
@@ -60,6 +75,10 @@ try {
         $messages[] = ['error', 'CSRF vagy session hiba: a helyreállítás nem futott le.'];
     } elseif ($wantsRepair && !$authorized) {
         $messages[] = ['error', 'Helyreállításhoz érvényes kulcs szükséges.'];
+    }
+
+    if ($isDefaultHealthcheckKey) {
+        $messages[] = ['error', 'A HEALTHCHECK_KEY alapértelmezett értéken van. Állíts be egyedi kulcsot a config.php fájlban.'];
     }
 } catch (Throwable $exception) {
     if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {

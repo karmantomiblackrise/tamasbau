@@ -29,14 +29,14 @@ A gyökérben lévő `config.php` fájlban töltsd ki a saját adatokat:
 ## 3) Schema import
 1. phpMyAdmin → válaszd ki a cél adatbázist.
 2. Importáld: `database/schema.sql`
-3. Az SQL tartalmazza az admin seed rekordot és a szükséges táblákat.
+3. Az SQL a szükséges táblákat hozza létre.
 
 ## 4) Alap admin belépés (friss telepítés)
-- URL: `/admin/login.php`
-- Felhasználónév: `admin`
-- Jelszó: `password`
-
-Ez a belépés kizárólag friss telepítési bootstrap célra van. Belépés után **azonnal** cseréld le: `Admin → Rendszer/Fiók → Jelszócsere`, és csak ezután tedd publikus elérésre a rendszert.
+1. Nyisd meg: `/admin/setup-check.php?key=SAJAT_HEALTHCHECK_KEY`
+2. A helyreállításnál írd be: `YES`
+3. A rendszer generál egy egyszer használatos ideiglenes admin jelszót
+4. Lépj be: `/admin/login.php` (felhasználónév: `admin`)
+5. Azonnal jelszócsere: `Admin → Rendszer/Fiók → Jelszócsere`
 
 ## 5) Diagnosztika és biztonságos helyreállítás
 - Diagnosztika: `/admin/setup-check.php`

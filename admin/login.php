@@ -26,14 +26,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!table_exists($pdo, 'users')) {
                 $error = 'Hiányzó users tábla az adatbázisban.';
-            } elseif (!column_exists($pdo, 'users', 'password_hash')) {
-                $error = 'A users tábla nem kompatibilis: hiányzik a password_hash mező.';
             } else {
+                $requiredColumns = ['username', 'password_hash', 'role', 'is_active'];
+                $missingColumns = [];
+                foreach ($requiredColumns as $column) {
+                    if (!column_exists($pdo, 'users', $column)) {
+                        $missingColumns[] = $column;
+                    }
+                }
+
+                if ($missingColumns) {
+                    $error = 'A users tábla nem kompatibilis, hiányzó mezők: ' . implode(', ', $missingColumns) . '.';
+                } else {
                 $adminCountStmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin' LIMIT 1");
                 $adminCount = (int) $adminCountStmt->fetchColumn();
 
                 if ($adminCount < 1) {
-                    $error = 'Hiányzó admin rekord a users táblában.';
+                    $error = 'Hiányzó admin rekord a users táblában. Futtasd a setup-check helyreállítást.';
                 } else {
                     $user = find_user_by_username($pdo, $username);
 
@@ -47,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         flash_set('success', 'Sikeres bejelentkezés.');
                         redirect('admin/dashboard.php');
                     }
+                }
                 }
             }
         } catch (Throwable $exception) {

@@ -160,13 +160,3 @@ CREATE TABLE IF NOT EXISTS shop_settings (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-INSERT INTO users (username, password_hash, role, is_active)
-VALUES (
-    'admin',
-    '$2y$10$BE0f9AR5l9Nmt5wjv4nYR.EpH9JNz7CwfJmYpanp8kTC5HLo8QNte',
-    'admin',
-    1
-)
-ON DUPLICATE KEY UPDATE
-    username = VALUES(username);
