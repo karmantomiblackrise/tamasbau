@@ -1,0 +1,30 @@
+<?php
+
+declare(strict_types=1);
+
+require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
+require_once __DIR__ . '/_module_helpers.php';
+require_admin();
+
+$pageTitle = 'Szolgáltatások';
+$activeNav = 'services';
+$rows = [];
+$count = null;
+
+try {
+    $pdo = db();
+    $count = count_if_table_exists($pdo, 'services');
+    $rows = fetch_recent_rows($pdo, 'services', ['id','name','short_description','updated_at']);
+} catch (Throwable $exception) {
+    flash_set('error', db_connection_error_message($exception));
+}
+
+require_once dirname(__DIR__) . '/partials/header.php';
+?>
+<div class="card" style="margin-bottom:12px;">
+    <h3><?= h('Szolgáltatások') ?></h3>
+    <div class="card__value"><?= h((string) ($count ?? 0)) ?></div>
+    <p class="helper">Tábla: <?= h('services') ?></p>
+</div>
+<?php render_module_table(['ID','Név','Leírás','Frissítve'], $rows); ?>
+<?php require_once dirname(__DIR__) . '/partials/footer.php';

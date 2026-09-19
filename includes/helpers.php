@@ -1,0 +1,94 @@
+<?php
+
+declare(strict_types=1);
+
+function app_base_path(): string
+{
+    $trimmed = trim(APP_BASE_PATH, '/');
+    return $trimmed === '' ? '' : '/' . $trimmed;
+}
+
+function app_cookie_path(): string
+{
+    $base = app_base_path();
+    return $base === '' ? '/' : $base . '/';
+}
+
+function app_url(string $path = ''): string
+{
+    $base = rtrim(APP_URL, '/');
+    $fullPath = app_base_path() . '/' . ltrim($path, '/');
+    return $base . '/' . ltrim($fullPath, '/');
+}
+
+function redirect(string $path): void
+{
+    header('Location: ' . app_url($path));
+    exit;
+}
+
+function h(?string $value): string
+{
+    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+}
+
+function flash_set(string $type, string $message): void
+{
+    $_SESSION['flash'] = ['type' => $type, 'message' => $message];
+}
+
+function flash_get(): ?array
+{
+    if (!isset($_SESSION['flash'])) {
+        return null;
+    }
+
+    $flash = $_SESSION['flash'];
+    unset($_SESSION['flash']);
+
+    return $flash;
+}
+
+function app_log(string $message): void
+{
+    $logPath = dirname(__DIR__) . '/logs/admin-recovery.log';
+    $line = sprintf("[%s] %s\n", date('Y-m-d H:i:s'), $message);
+    @file_put_contents($logPath, $line, FILE_APPEND);
+}
+
+function table_exists(PDO $pdo, string $tableName): bool
+{
+    $sql = 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = :schema AND table_name = :table';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([
+        'schema' => DB_NAME,
+        'table' => $tableName,
+    ]);
+
+    return (int) $stmt->fetchColumn() > 0;
+}
+
+function column_exists(PDO $pdo, string $tableName, string $columnName): bool
+{
+    $sql = 'SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = :schema AND table_name = :table AND column_name = :column';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([
+        'schema' => DB_NAME,
+        'table' => $tableName,
+        'column' => $columnName,
+    ]);
+
+    return (int) $stmt->fetchColumn() > 0;
+}
+
+function count_if_table_exists(PDO $pdo, string $tableName): ?int
+{
+    if (!table_exists($pdo, $tableName)) {
+        return null;
+    }
+
+    $sql = sprintf('SELECT COUNT(*) FROM `%s`', str_replace('`', '', $tableName));
+    $stmt = $pdo->query($sql);
+
+    return (int) $stmt->fetchColumn();
+}
