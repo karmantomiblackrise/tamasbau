@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 function is_logged_in(): bool
 {
-    return !empty($_SESSION['auth']['user_id']) && !empty($_SESSION['auth']['is_admin']);
+    return !empty($_SESSION['auth']['user_id']);
 }
 
 function require_admin(): void
 {
-    if (!is_logged_in()) {
+    if (!is_logged_in() || (($_SESSION['auth']['role'] ?? '') !== 'admin')) {
         flash_set('error', 'Bejelentkezés szükséges.');
         redirect('admin/login.php');
     }

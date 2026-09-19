@@ -36,7 +36,7 @@ A gyökérben lévő `config.php` fájlban töltsd ki a saját adatokat:
 - Felhasználónév: `admin`
 - Jelszó: `password`
 
-Belépés után **azonnal** cseréld le: `Admin → Rendszer/Fiók → Jelszócsere`.
+Ez a belépés kizárólag friss telepítési bootstrap célra van. Belépés után **azonnal** cseréld le: `Admin → Rendszer/Fiók → Jelszócsere`, és csak ezután tedd publikus elérésre a rendszert.
 
 ## 5) Diagnosztika és biztonságos helyreállítás
 - Diagnosztika: `/admin/setup-check.php`

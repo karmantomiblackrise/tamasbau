@@ -169,6 +169,4 @@ VALUES (
     1
 )
 ON DUPLICATE KEY UPDATE
-    password_hash = VALUES(password_hash),
-    role = VALUES(role),
-    is_active = VALUES(is_active);
+    username = VALUES(username);

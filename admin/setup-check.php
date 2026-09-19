@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 
-$providedKey = (string) ($_GET['key'] ?? $_POST['key'] ?? '');
+$providedKey = (string) ($_GET['key'] ?? '');
 $authorized = $providedKey !== '' && hash_equals(HEALTHCHECK_KEY, $providedKey);
 $wantsRepair = ($_SERVER['REQUEST_METHOD'] === 'POST')
     && (string) ($_POST['mode'] ?? '') === 'repair'
@@ -98,9 +98,8 @@ try {
     <div class="form-card" style="margin-top:16px;">
         <h2>Biztonságos helyreállítás</h2>
         <p class="helper">Csak akkor futtasd, ha biztosan friss telepítésen dolgozol és helyre kell állítani az admin alaprekordot.</p>
-        <form method="post">
+        <form method="post" action="<?= h(app_url('admin/setup-check.php') . ($providedKey !== '' ? '?key=' . urlencode($providedKey) : '')) ?>">
             <input type="hidden" name="mode" value="repair">
-            <input type="hidden" name="key" value="<?= h($providedKey) ?>">
             <input type="hidden" name="csrf_token" value="<?= h(csrf_token()) ?>">
             <label for="confirm">Írd be: YES</label>
             <input id="confirm" name="confirm" type="text" required>
