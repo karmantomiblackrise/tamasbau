@@ -7,9 +7,14 @@ function is_logged_in(): bool
     return !empty($_SESSION['auth']['user_id']);
 }
 
+function is_admin_user(): bool
+{
+    return is_logged_in() && (($_SESSION['auth']['role'] ?? '') === 'admin');
+}
+
 function require_admin(): void
 {
-    if (!is_logged_in() || (($_SESSION['auth']['role'] ?? '') !== 'admin')) {
+    if (!is_admin_user()) {
         flash_set('error', 'Bejelentkezés szükséges.');
         redirect('admin/login.php');
     }
@@ -32,7 +37,14 @@ function logout_user(): void
 
     if (ini_get('session.use_cookies')) {
         $params = session_get_cookie_params();
-        setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], (bool) $params['secure'], (bool) $params['httponly']);
+        setcookie(session_name(), '', [
+            'expires' => time() - 42000,
+            'path' => $params['path'],
+            'domain' => $params['domain'],
+            'secure' => (bool) $params['secure'],
+            'httponly' => (bool) $params['httponly'],
+            'samesite' => 'Lax',
+        ]);
     }
 
     session_destroy();

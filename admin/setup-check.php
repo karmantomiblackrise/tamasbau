@@ -137,16 +137,19 @@ try {
 
     <div class="form-card" style="margin-top:16px;">
         <h2>Biztonságos helyreállítás</h2>
-        <p class="helper">Csak akkor futtasd, ha biztosan friss telepítésen dolgozol és helyre kell állítani az admin alaprekordot.</p>
+        <p class="helper" id="repairHelp">Csak akkor futtasd, ha biztosan friss telepítésen dolgozol és helyre kell állítani az admin alaprekordot.</p>
         <form method="post" action="<?= h(app_url('admin/setup-check.php')) ?>">
             <input type="hidden" name="mode" value="repair">
             <input type="hidden" name="csrf_token" value="<?= h(csrf_token()) ?>">
-            <label for="healthcheck_key">HEALTHCHECK kulcs</label>
-            <input id="healthcheck_key" name="healthcheck_key" type="password" required>
-            <label for="new_password">Új admin jelszó (min. 12 karakter)</label>
-            <input id="new_password" name="new_password" type="password" minlength="12" required>
-            <label for="confirm">Írd be: YES</label>
-            <input id="confirm" name="confirm" type="text" required>
+            <fieldset aria-describedby="repairHelp">
+                <legend>Helyreállítási adatok</legend>
+                <label for="healthcheck_key">HEALTHCHECK kulcs</label>
+                <input id="healthcheck_key" name="healthcheck_key" type="password" required>
+                <label for="new_password">Új admin jelszó (min. 12 karakter)</label>
+                <input id="new_password" name="new_password" type="password" minlength="12" required>
+                <label for="confirm">Írd be: YES</label>
+                <input id="confirm" name="confirm" type="text" required>
+            </fieldset>
             <button class="btn" type="submit" style="margin-top:10px;">Helyreállítás futtatása</button>
         </form>
         <p class="helper" style="margin-top:10px;">A helyreállítás futtatásához add meg a `config.php` fájlban beállított HEALTHCHECK kulcsot.</p>
