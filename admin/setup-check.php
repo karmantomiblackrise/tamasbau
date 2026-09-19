@@ -9,6 +9,7 @@ $authorized = $providedKey !== '' && hash_equals(HEALTHCHECK_KEY, $providedKey);
 $wantsRepair = ($_SERVER['REQUEST_METHOD'] === 'POST')
     && (string) ($_POST['mode'] ?? '') === 'repair'
     && (string) ($_POST['confirm'] ?? '') === 'YES';
+$repairPassword = null;
 
 $messages = [];
 $checks = [];
@@ -27,7 +28,8 @@ try {
         $adminCount = 0;
     }
 
-    if ($authorized && $wantsRepair) {
+    if ($authorized && $wantsRepair && csrf_validate($_POST['csrf_token'] ?? null)) {
+        $repairPassword = bin2hex(random_bytes(8));
         $pdo->beginTransaction();
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS users (
@@ -48,12 +50,14 @@ try {
                 role = VALUES(role),
                 is_active = VALUES(is_active)");
         $seedStmt->execute([
-            'password_hash' => '$2y$10$BE0f9AR5l9Nmt5wjv4nYR.EpH9JNz7CwfJmYpanp8kTC5HLo8QNte',
+            'password_hash' => password_hash($repairPassword, PASSWORD_DEFAULT),
         ]);
 
         $pdo->commit();
         app_log('setup-check helyreállítás futtatva: users tábla/admin seed biztosítva.');
-        $messages[] = ['success', 'Helyreállítás lefutott. Az admin belépéshez: admin / password'];
+        $messages[] = ['success', 'Helyreállítás lefutott. Az új ideiglenes jelszó: ' . $repairPassword];
+    } elseif ($authorized && $wantsRepair) {
+        $messages[] = ['error', 'CSRF vagy session hiba: a helyreállítás nem futott le.'];
     } elseif ($wantsRepair && !$authorized) {
         $messages[] = ['error', 'Helyreállításhoz érvényes kulcs szükséges.'];
     }
@@ -97,6 +101,7 @@ try {
         <form method="post">
             <input type="hidden" name="mode" value="repair">
             <input type="hidden" name="key" value="<?= h($providedKey) ?>">
+            <input type="hidden" name="csrf_token" value="<?= h(csrf_token()) ?>">
             <label for="confirm">Írd be: YES</label>
             <input id="confirm" name="confirm" type="text" required>
             <button class="btn" type="submit" style="margin-top:10px;">Helyreállítás futtatása</button>

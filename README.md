@@ -47,6 +47,7 @@ Belépés után **azonnal** cseréld le: `Admin → Rendszer/Fiók → Jelszócs
 
 A helyreállítás kizárólag a `users` tábla/admin seed konzisztenciát javítja, és naplóz:
 - `logs/admin-recovery.log`
+- A helyreállítás **egyszer használatos, véletlen ideiglenes jelszót** állít be az `admin` fióknak, amit a futás után azonnal cserélni kell.
 
 A diagnosztika nem ír ki DB jelszót vagy titkos konfigurációs értéket.
 

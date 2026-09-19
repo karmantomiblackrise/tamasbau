@@ -47,7 +47,14 @@ $nav = [
             <div class="sidebar__group">
                 <div class="sidebar__title"><?= h($group) ?></div>
                 <?php foreach ($links as $key => $item): ?>
-                    <a class="sidebar__link <?= $activeNav === $key ? 'is-active' : '' ?>" href="<?= h(app_url($item['href'])) ?>"><?= h($item['label']) ?></a>
+                    <?php if ($key === 'logout'): ?>
+                        <form method="post" action="<?= h(app_url($item['href'])) ?>">
+                            <input type="hidden" name="csrf_token" value="<?= h(csrf_token()) ?>">
+                            <button class="sidebar__link sidebar__button" type="submit"><?= h($item['label']) ?></button>
+                        </form>
+                    <?php else: ?>
+                        <a class="sidebar__link <?= $activeNav === $key ? 'is-active' : '' ?>" href="<?= h(app_url($item['href'])) ?>"><?= h($item['label']) ?></a>
+                    <?php endif; ?>
                 <?php endforeach; ?>
             </div>
         <?php endforeach; ?>

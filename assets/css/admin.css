@@ -17,6 +17,7 @@ body { margin: 0; font-family: "Inter", "Segoe UI", Arial, sans-serif; backgroun
 .sidebar__title { font-size: .8rem; color: #9eb1d6; text-transform: uppercase; margin: 8px 0; }
 .sidebar__link { display: block; color: #dce6ff; text-decoration: none; padding: 10px 12px; border-radius: 8px; font-size: .95rem; }
 .sidebar__link:hover, .sidebar__link.is-active { background: #1d3254; }
+.sidebar__button { width: 100%; background: transparent; border: 0; text-align: left; }
 .content-wrap { flex: 1; min-width: 0; }
 .topbar { height: 64px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 18px; gap: 12px; }
 .topbar__title { font-size: 1rem; font-weight: 600; }

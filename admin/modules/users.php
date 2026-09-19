@@ -22,19 +22,41 @@ try {
 
             if ($targetId < 1) {
                 $error = 'Érvénytelen felhasználó.';
-            } elseif ($action === 'toggle_active' && $targetId === $currentUserId) {
-                $error = 'A saját felhasználó nem deaktiválható.';
             } else {
-                if ($action === 'toggle_active') {
-                    $stmt = $pdo->prepare('UPDATE users SET is_active = IF(is_active = 1, 0, 1), updated_at = NOW() WHERE id = :id');
-                    $stmt->execute(['id' => $targetId]);
-                    flash_set('success', 'Felhasználó státusz frissítve.');
-                } elseif ($action === 'toggle_role') {
-                    $stmt = $pdo->prepare("UPDATE users SET role = IF(role = 'admin', 'editor', 'admin'), updated_at = NOW() WHERE id = :id");
-                    $stmt->execute(['id' => $targetId]);
-                    flash_set('success', 'Felhasználó szerepkör frissítve.');
+                $userStmt = $pdo->prepare('SELECT id, role, is_active FROM users WHERE id = :id LIMIT 1');
+                $userStmt->execute(['id' => $targetId]);
+                $targetUser = $userStmt->fetch();
+                $activeAdminCount = (int) $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1")->fetchColumn();
+
+                if (!$targetUser) {
+                    $error = 'A felhasználó nem található.';
+                } elseif ($action === 'toggle_role' && $targetId === $currentUserId) {
+                    $error = 'A saját szerepkör nem módosítható ezen a felületen.';
+                } elseif ($action === 'toggle_active' && $targetId === $currentUserId) {
+                    $error = 'A saját felhasználó nem deaktiválható.';
+                } elseif (
+                    $targetUser['role'] === 'admin'
+                    && (
+                        ($action === 'toggle_role')
+                        || ($action === 'toggle_active' && (int) $targetUser['is_active'] === 1)
+                    )
+                    && $activeAdminCount <= 1
+                ) {
+                    $error = 'Az utolsó aktív admin nem vehető el vagy nem deaktiválható.';
                 }
-                redirect('admin/modules/users.php');
+
+                if ($error === null) {
+                    if ($action === 'toggle_active') {
+                        $stmt = $pdo->prepare('UPDATE users SET is_active = IF(is_active = 1, 0, 1), updated_at = NOW() WHERE id = :id');
+                        $stmt->execute(['id' => $targetId]);
+                        flash_set('success', 'Felhasználó státusz frissítve.');
+                    } elseif ($action === 'toggle_role') {
+                        $stmt = $pdo->prepare("UPDATE users SET role = IF(role = 'admin', 'editor', 'admin'), updated_at = NOW() WHERE id = :id");
+                        $stmt->execute(['id' => $targetId]);
+                        flash_set('success', 'Felhasználó szerepkör frissítve.');
+                    }
+                    redirect('admin/modules/users.php');
+                }
             }
         }
     }
