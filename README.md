@@ -34,7 +34,7 @@ A gyökérben lévő `config.php` fájlban töltsd ki a saját adatokat:
 ## 4) Alap admin belépés (friss telepítés)
 1. Nyisd meg: `/admin/setup-check.php?key=SAJAT_HEALTHCHECK_KEY`
 2. A helyreállításnál írd be: `YES`
-3. A rendszer generál egy egyszer használatos ideiglenes admin jelszót
+3. Adj meg egy új admin jelszót (minimum 12 karakter)
 4. Lépj be: `/admin/login.php` (felhasználónév: `admin`)
 5. Azonnal jelszócsere: `Admin → Rendszer/Fiók → Jelszócsere`
 
@@ -45,9 +45,9 @@ A gyökérben lévő `config.php` fájlban töltsd ki a saját adatokat:
   - érvényes kulcs (`?key=...`), és
   - POST megerősítés `confirm=YES`.
 
-A helyreállítás kizárólag a `users` tábla/admin seed konzisztenciát javítja, és naplóz:
+A helyreállítás kizárólag hiányzó admin rekord esetén hoz létre új `admin` felhasználót a megadott jelszóval, és naplóz:
 - `logs/admin-recovery.log`
-- A helyreállítás **egyszer használatos, véletlen ideiglenes jelszót** állít be az `admin` fióknak, amit a futás után azonnal cserélni kell.
+- Már létező admin jelszavát nem írja felül (védett működés).
 
 A diagnosztika nem ír ki DB jelszót vagy titkos konfigurációs értéket.
 

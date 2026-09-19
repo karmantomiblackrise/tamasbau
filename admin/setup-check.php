@@ -10,8 +10,6 @@ $authorized = $healthcheckKeyConfigured && $providedKey !== '' && hash_equals(HE
 $wantsRepair = ($_SERVER['REQUEST_METHOD'] === 'POST')
     && (string) ($_POST['mode'] ?? '') === 'repair'
     && (string) ($_POST['confirm'] ?? '') === 'YES';
-$repairPassword = null;
-
 $messages = [];
 $checks = [];
 $usersSchemaCompatible = false;
@@ -53,7 +51,17 @@ try {
             throw new RuntimeException('Inkompatibilis users séma');
         }
 
-        $repairPassword = bin2hex(random_bytes(8));
+        $newPassword = (string) ($_POST['new_password'] ?? '');
+        if (mb_strlen($newPassword) < 12) {
+            $messages[] = ['error', 'Az új admin jelszó legalább 12 karakter legyen.'];
+            throw new RuntimeException('Gyenge helyreállítási jelszó');
+        }
+
+        if ($adminCount > 0) {
+            $messages[] = ['error', 'Létező admin rekord esetén ez az endpoint nem írja felül a jelszót. Használd a jelszócserét az admin felületen.'];
+            throw new RuntimeException('Létező admin felülírás tiltva');
+        }
+
         $pdo->beginTransaction();
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS users (
@@ -70,16 +78,14 @@ try {
         $seedStmt = $pdo->prepare("INSERT INTO users (username, password_hash, role, is_active)
             VALUES ('admin', :password_hash, 'admin', 1)
             ON DUPLICATE KEY UPDATE
-                password_hash = VALUES(password_hash),
-                role = VALUES(role),
-                is_active = VALUES(is_active)");
+                username = VALUES(username)");
         $seedStmt->execute([
-            'password_hash' => password_hash($repairPassword, PASSWORD_DEFAULT),
+            'password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
         ]);
 
         $pdo->commit();
-        app_log('setup-check helyreállítás futtatva: users tábla/admin seed biztosítva.');
-        $messages[] = ['success', 'Helyreállítás lefutott. Az új ideiglenes jelszó: ' . $repairPassword];
+        app_log('setup-check helyreállítás futtatva: hiányzó admin rekord létrehozva.');
+        $messages[] = ['success', 'Helyreállítás lefutott. Az admin rekord létrehozva a megadott jelszóval.'];
     } elseif ($authorized && $wantsRepair) {
         $messages[] = ['error', 'CSRF vagy session hiba: a helyreállítás nem futott le.'];
     } elseif ($wantsRepair && !$authorized) {
@@ -131,6 +137,8 @@ try {
         <form method="post" action="<?= h(app_url('admin/setup-check.php') . ($providedKey !== '' ? '?key=' . urlencode($providedKey) : '')) ?>">
             <input type="hidden" name="mode" value="repair">
             <input type="hidden" name="csrf_token" value="<?= h(csrf_token()) ?>">
+            <label for="new_password">Új admin jelszó (min. 12 karakter)</label>
+            <input id="new_password" name="new_password" type="password" minlength="12" required>
             <label for="confirm">Írd be: YES</label>
             <input id="confirm" name="confirm" type="text" required>
             <button class="btn" type="submit" style="margin-top:10px;">Helyreállítás futtatása</button>

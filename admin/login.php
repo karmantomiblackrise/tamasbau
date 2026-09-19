@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $adminCount = (int) $adminCountStmt->fetchColumn();
 
                 if ($adminCount < 1) {
-                    $error = 'Hiányzó admin rekord a users táblában. Futtasd a setup-check helyreállítást.';
+                    $error = 'Hibás felhasználónév vagy jelszó.';
                 } else {
                     $user = find_user_by_username($pdo, $username);
 
