@@ -61,7 +61,18 @@ $nav = [
     </aside>
     <div class="content-wrap">
         <header class="topbar">
-            <button class="menu-toggle" type="button" onclick="document.getElementById('adminSidebar').classList.toggle('is-open');">☰</button>
+            <button
+                class="menu-toggle"
+                type="button"
+                aria-label="Admin navigáció megnyitása vagy bezárása"
+                aria-controls="adminSidebar"
+                aria-expanded="false"
+                onclick="
+                    const sidebar = document.getElementById('adminSidebar');
+                    const open = sidebar.classList.toggle('is-open');
+                    this.setAttribute('aria-expanded', open ? 'true' : 'false');
+                "
+            >☰</button>
             <div class="topbar__title"><?= h($pageTitle) ?></div>
             <div class="topbar__user"><?= h($_SESSION['auth']['username'] ?? 'ismeretlen') ?></div>
         </header>

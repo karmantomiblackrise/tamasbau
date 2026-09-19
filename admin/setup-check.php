@@ -5,8 +5,8 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 
 $providedKey = (string) ($_GET['key'] ?? '');
-$isDefaultHealthcheckKey = HEALTHCHECK_KEY === 'csereld_le_egy_hosszu_veletlen_kulcsra';
-$authorized = !$isDefaultHealthcheckKey && $providedKey !== '' && hash_equals(HEALTHCHECK_KEY, $providedKey);
+$healthcheckKeyConfigured = strlen(HEALTHCHECK_KEY) >= 24;
+$authorized = $healthcheckKeyConfigured && $providedKey !== '' && hash_equals(HEALTHCHECK_KEY, $providedKey);
 $wantsRepair = ($_SERVER['REQUEST_METHOD'] === 'POST')
     && (string) ($_POST['mode'] ?? '') === 'repair'
     && (string) ($_POST['confirm'] ?? '') === 'YES';
@@ -14,6 +14,7 @@ $repairPassword = null;
 
 $messages = [];
 $checks = [];
+$usersSchemaCompatible = false;
 
 try {
     $pdo = db();
@@ -34,16 +35,24 @@ try {
         if ($missingColumns) {
             $checks[] = ['users mezők', 'Hiányzó mezők: ' . implode(', ', $missingColumns)];
             $adminCount = 0;
+            $usersSchemaCompatible = false;
         } else {
             $checks[] = ['users mezők', 'OK'];
             $adminCount = (int) $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn();
             $checks[] = ['Admin rekord', $adminCount > 0 ? 'OK' : 'Hiányzik'];
+            $usersSchemaCompatible = true;
         }
     } else {
         $adminCount = 0;
+        $usersSchemaCompatible = true;
     }
 
     if ($authorized && $wantsRepair && csrf_validate($_POST['csrf_token'] ?? null)) {
+        if (!$usersSchemaCompatible) {
+            $messages[] = ['error', 'A users tábla szerkezete nem kompatibilis. Futtass teljes schema importot a helyreállítás előtt.'];
+            throw new RuntimeException('Inkompatibilis users séma');
+        }
+
         $repairPassword = bin2hex(random_bytes(8));
         $pdo->beginTransaction();
 
@@ -77,14 +86,16 @@ try {
         $messages[] = ['error', 'Helyreállításhoz érvényes kulcs szükséges.'];
     }
 
-    if ($isDefaultHealthcheckKey) {
-        $messages[] = ['error', 'A HEALTHCHECK_KEY alapértelmezett értéken van. Állíts be egyedi kulcsot a config.php fájlban.'];
+    if (!$healthcheckKeyConfigured) {
+        $messages[] = ['error', 'A HEALTHCHECK_KEY nincs biztonságosan beállítva (min. 24 karakter szükséges).'];
     }
 } catch (Throwable $exception) {
     if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    $checks[] = ['Adatbázis kapcsolat', db_connection_error_message($exception)];
+    if (!($exception instanceof RuntimeException)) {
+        $checks[] = ['Adatbázis kapcsolat', db_connection_error_message($exception)];
+    }
 }
 ?><!doctype html>
 <html lang="hu">
