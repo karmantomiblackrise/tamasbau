@@ -538,17 +538,21 @@
                         <input type="text" id="shop-search" oninput="renderShopProducts()" placeholder="Keresés termékekre..." class="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 pl-9 text-sm text-white focus:outline-none focus:border-amber-500 w-48 sm:w-64">
                         <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-sm"></i>
                     </div>
-                    <select id="shop-category" onchange="renderShopProducts()" class="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+                    <select id="shop-category" onchange="setShopCategory(this.value)" class="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
                         <option value="all">Minden kategória</option>
-                        <option value="riaszto">Riasztórendszerek</option>
-                        <option value="kamera">Kamerák & NVR</option>
-                        <option value="villany">Villanyszerelési anyag</option>
-                        <option value="okos">Okosotthon</option>
                     </select>
                 </div>
             </div>
 
-            <div id="shop-products-grid" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="grid lg:grid-cols-12 gap-6">
+                <aside class="lg:col-span-3">
+                    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4">
+                        <h3 class="text-sm font-bold text-white mb-3">Kategóriák és alkategóriák</h3>
+                        <div id="shop-category-tree" class="space-y-2 text-sm"></div>
+                    </div>
+                </aside>
+                <div id="shop-products-grid" class="lg:col-span-9 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                </div>
             </div>
         </div>
 
@@ -572,11 +576,17 @@
                 <button onclick="switchAdminTab('products')" id="tab-btn-products" class="admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white">
                     <i class="fa-solid fa-box mr-2"></i>Termékek Kezelése (CRUD)
                 </button>
+                <button onclick="switchAdminTab('categories')" id="tab-btn-categories" class="admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-sitemap mr-2"></i>Kategóriák
+                </button>
                 <button onclick="switchAdminTab('orders')" id="tab-btn-orders" class="admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white">
                     <i class="fa-solid fa-receipt mr-2"></i>Rendelések
                 </button>
                 <button onclick="switchAdminTab('quotes')" id="tab-btn-quotes" class="admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white">
                     <i class="fa-solid fa-envelope-open-text mr-2"></i>Beérkezett Ajánlatkérések
+                </button>
+                <button onclick="switchAdminTab('users')" id="tab-btn-users" class="admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-users mr-2"></i>Felhasználók
                 </button>
             </div>
 
@@ -593,7 +603,7 @@
                         <div class="text-xs text-slate-400 mt-1">Webshop forgalom</div>
                     </div>
                     <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
-                        <div class="text-xs text-slate-400 font-medium">Függő Ajánlatkérések</div>
+                        <div class="text-xs text-slate-400 font-medium">Új Ajánlatkérések</div>
                         <div id="kpi-quotes-count" class="text-2xl font-black text-sky-400 mt-2">0 db</div>
                         <div class="text-xs text-sky-400 mt-1">Azonnali intézkedést igényel</div>
                     </div>
@@ -639,6 +649,42 @@
                 </div>
             </div>
 
+            <div id="admin-tab-categories" class="admin-tab-content hidden space-y-6">
+                <div class="grid lg:grid-cols-2 gap-6">
+                    <div class="bg-slate-800 rounded-2xl border border-slate-700 p-5 space-y-4">
+                        <h3 class="text-lg font-bold text-white">Új kategória / alkategória</h3>
+                        <form onsubmit="handleCategoryFormSubmit(event)" class="space-y-4">
+                            <input type="hidden" id="cat-id">
+                            <div>
+                                <label class="block text-xs text-slate-300 mb-1">Név *</label>
+                                <input type="text" id="cat-name" required class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-300 mb-1">Szülő kategória (opcionális)</label>
+                                <select id="cat-parent" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm"></select>
+                            </div>
+                            <button id="cat-submit-btn" type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">
+                                Kategória Mentése
+                            </button>
+                        </form>
+                    </div>
+                    <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm text-slate-300">
+                                <thead class="bg-slate-900 text-xs uppercase text-slate-400">
+                                    <tr>
+                                        <th class="p-4">Név</th>
+                                        <th class="p-4">Típus</th>
+                                        <th class="p-4 text-right">Műveletek</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-categories-table" class="divide-y divide-slate-700"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div id="admin-tab-orders" class="admin-tab-content hidden space-y-6">
                 <h3 class="text-xl font-bold text-white">Beérkezett Webshop Megrendelések</h3>
                 <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
@@ -677,6 +723,27 @@
                             </thead>
                             <tbody id="admin-quotes-table" class="divide-y divide-slate-700">
                             </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="admin-tab-users" class="admin-tab-content hidden space-y-6">
+                <h3 class="text-xl font-bold text-white">Regisztrált felhasználók kezelése</h3>
+                <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-300">
+                            <thead class="bg-slate-900 text-xs uppercase text-slate-400">
+                                <tr>
+                                    <th class="p-4">Név</th>
+                                    <th class="p-4">E-mail</th>
+                                    <th class="p-4">Szerepkör</th>
+                                    <th class="p-4">Regisztráció</th>
+                                    <th class="p-4">Aktív</th>
+                                    <th class="p-4 text-right">Művelet</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-users-table" class="divide-y divide-slate-700"></tbody>
                         </table>
                     </div>
                 </div>
@@ -806,18 +873,19 @@
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs text-slate-300 mb-1">Kategória</label>
-                        <select id="prod-category" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm">
-                            <option value="riaszto">Riasztórendszerek</option>
-                            <option value="kamera">Kamerák & NVR</option>
-                            <option value="villany">Villanyszerelés</option>
-                            <option value="okos">Okosotthon</option>
+                        <label class="block text-xs text-slate-300 mb-1">Fő kategória</label>
+                        <select id="prod-main-category" onchange="syncProductSubcategories()" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm">
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs text-slate-300 mb-1">Ár (Ft) *</label>
-                        <input type="number" id="prod-price" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                        <label class="block text-xs text-slate-300 mb-1">Alkategória</label>
+                        <select id="prod-category" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                        </select>
                     </div>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">Ár (Ft) *</label>
+                    <input type="number" id="prod-price" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm">
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -885,53 +953,144 @@
     </footer>
 
     <script>
-        const defaultProducts = [
-            { id: 101, name: "Ajax Hub 2 Plus Okos Riasztóközpont", category: "riaszto", price: 124900, stock: 12, icon: "fa-shield-halved", desc: "Ethernet, Wi-Fi és dual SIM támogatású központi egység." },
-            { id: 102, name: "Ajax MotionProtect Vezeték Nélküli Mozgásérzékelő", category: "riaszto", price: 18900, stock: 45, icon: "fa-sensor-on", desc: "Kisállat-védett infrás mozgásérzékelő." },
-            { id: 103, name: "Hikvision 4K IP Dome Kamera 30m IR", category: "kamera", price: 42500, stock: 18, icon: "fa-video", desc: "Acusense ember/jármű megkülönböztetés, IP67 vízálló." },
-            { id: 104, name: "Schneider Electric 16A Kismegszakító (C16)", category: "villany", price: 1490, stock: 150, icon: "fa-bolt", desc: "B és C kioldási karakterisztikával lakossági elosztókhoz." },
-            { id: 105, name: "Wi-Fi Videó Kaputelefon Beltéri Egységgel", category: "okos", price: 68900, stock: 8, icon: "fa-door-closed", desc: "Mobiltelefonos kapunyitás és HD videókép." },
-            { id: 106, name: "Fi-Relé (Áram-védőkapcsoló) 40A 30mA", category: "villany", price: 11200, stock: 30, icon: "fa-plug", desc: "Életvédelmi relé családi házak védelméhez." }
-        ];
-
-        const defaultOrders = [
-            { id: "ORD-9821", customer: "Nagy Péter", total: 143800, date: "2026-03-18", status: "Feldolgozás alatt" },
-            { id: "ORD-9820", customer: "Szabó Éva", total: 42500, date: "2026-03-15", status: "Teljesítve" }
-        ];
-
-        const defaultQuotes = [
-            { id: 1, name: "Varga Balázs", phone: "+36 30 555 1234", type: "Riasztó kiépítés", message: "120m2-es családi házhoz szeretnék komplett Ajax rendszert.", date: "2026-03-19" }
-        ];
-
-        let state = {
-            products: JSON.parse(localStorage.getItem('tb_products')) || defaultProducts,
-            orders: JSON.parse(localStorage.getItem('tb_orders')) || defaultOrders,
-            quotes: JSON.parse(localStorage.getItem('tb_quotes')) || defaultQuotes,
-            cart: JSON.parse(localStorage.getItem('tb_cart')) || [],
-            currentUser: JSON.parse(localStorage.getItem('tb_user')) || null,
-            estimates: JSON.parse(localStorage.getItem('tb_estimates')) || [],
-            calcData: { area: 70, wiringType: 'full', alarmQty: 1, cameraQty: 2, intercom: false }
+        const API = {
+            auth: 'api/auth.php',
+            users: 'api/users.php',
+            categories: 'api/categories.php',
+            products: 'api/products.php',
+            orders: 'api/orders.php',
+            quotes: 'api/quotes.php',
+            estimates: 'api/estimates.php'
         };
 
+        let state = {
+            products: [],
+            orders: [],
+            quotes: [],
+            users: [],
+            categories: [],
+            cart: JSON.parse(localStorage.getItem('tb_cart') || '[]'),
+            currentUser: null,
+            csrfToken: localStorage.getItem('tb_csrf') || null,
+            estimates: [],
+            activeShopCategoryId: 'all',
+            calcData: { area: 70, wiringType: 'full', alarmQty: 1, cameraQty: 2, intercom: false, total: 0 }
+        };
+
+        function esc(text) {
+            return String(text ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        async function apiFetch(url, options = {}) {
+            const mergedHeaders = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+            if (state.csrfToken) {
+                mergedHeaders['X-CSRF-Token'] = state.csrfToken;
+            }
+            const response = await fetch(url, {
+                credentials: 'same-origin',
+                headers: mergedHeaders,
+                ...options,
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || data.ok === false) {
+                throw new Error(data.error || 'Szerverhiba történt.');
+            }
+            return data;
+        }
+
         function saveState() {
-            localStorage.setItem('tb_products', JSON.stringify(state.products));
-            localStorage.setItem('tb_orders', JSON.stringify(state.orders));
-            localStorage.setItem('tb_quotes', JSON.stringify(state.quotes));
             localStorage.setItem('tb_cart', JSON.stringify(state.cart));
-            localStorage.setItem('tb_user', JSON.stringify(state.currentUser));
-            localStorage.setItem('tb_estimates', JSON.stringify(state.estimates));
+        }
+
+        async function loadUserSession() {
+            try {
+                const data = await apiFetch(`${API.auth}?action=me`);
+                state.currentUser = data.user || null;
+                state.csrfToken = data.csrf_token || state.csrfToken;
+                if (state.csrfToken) localStorage.setItem('tb_csrf', state.csrfToken);
+            } catch {
+                state.currentUser = null;
+                state.csrfToken = null;
+                localStorage.removeItem('tb_csrf');
+            }
+        }
+
+        async function loadCategories() {
+            const data = await apiFetch(API.categories);
+            state.categories = data.categories || [];
+            renderShopCategoryControls();
+            populateCategoryParentSelect();
+            syncProductMainCategories();
+        }
+
+        async function loadProducts() {
+            const data = await apiFetch(API.products);
+            state.products = data.products || [];
+            renderShopProducts();
+        }
+
+        async function loadOrders() {
+            const data = await apiFetch(API.orders);
+            state.orders = data.orders || [];
+        }
+
+        async function loadQuotes() {
+            if (!state.currentUser || state.currentUser.role !== 'admin') return;
+            const data = await apiFetch(API.quotes);
+            state.quotes = data.quotes || [];
+        }
+
+        async function loadUsers() {
+            if (!state.currentUser || state.currentUser.role !== 'admin') return;
+            const data = await apiFetch(API.users);
+            state.users = data.users || [];
+        }
+
+        async function loadEstimates() {
+            if (!state.currentUser) return;
+            const data = await apiFetch(API.estimates);
+            state.estimates = data.estimates || [];
+        }
+
+        async function refreshData() {
+            await loadUserSession();
+            await Promise.all([loadCategories(), loadProducts()]);
+            if (state.currentUser) {
+                await Promise.all([loadOrders(), loadEstimates()]);
+                if (state.currentUser.role === 'admin') {
+                    await Promise.all([loadQuotes(), loadUsers()]);
+                }
+            } else {
+                state.orders = [];
+                state.estimates = [];
+                state.quotes = [];
+                state.users = [];
+            }
+            updateAuthUI();
+            updateCartBadge();
         }
 
         function showPage(pageId) {
+            if (pageId === 'admin' && (!state.currentUser || state.currentUser.role !== 'admin')) {
+                openAuthModal('login');
+                showToast('Admin hozzáférés szükséges.');
+                return;
+            }
+
             document.querySelectorAll('.page-view').forEach(el => el.classList.add('hidden'));
             const target = document.getElementById(`page-${pageId}`);
-            if(target) target.classList.remove('hidden');
+            if (target) target.classList.remove('hidden');
             window.scrollTo({ top: 0, behavior: 'smooth' });
 
-            if(pageId === 'webshop') renderShopProducts();
-            if(pageId === 'admin') renderAdminTab('overview');
-            if(pageId === 'profile') renderUserProfile();
-            if(pageId === 'calculator') updateCalculator();
+            if (pageId === 'webshop') renderShopProducts();
+            if (pageId === 'admin') renderAdminTab('overview');
+            if (pageId === 'profile') renderUserProfile();
+            if (pageId === 'calculator') updateCalculator();
         }
 
         function toggleMobileMenu() {
@@ -942,28 +1101,25 @@
             const toast = document.getElementById('toast-notification');
             document.getElementById('toast-message').innerText = msg;
             toast.classList.remove('translate-y-20', 'opacity-0');
-            setTimeout(() => {
-                toast.classList.add('translate-y-20', 'opacity-0');
-            }, 3000);
+            setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
         }
 
         function updateCalculator() {
-            const area = parseInt(document.getElementById('calc-area').value);
+            const area = parseInt(document.getElementById('calc-area').value, 10);
             const wiringType = document.getElementById('calc-wiring-type').value;
             const intercom = document.getElementById('calc-intercom').checked;
 
             document.getElementById('calc-area-val').innerText = `${area} m²`;
 
             let wiringRate = 0;
-            if(wiringType === 'partial') wiringRate = 8000;
-            if(wiringType === 'full') wiringRate = 14000;
-            if(wiringType === 'premium') wiringRate = 20000;
+            if (wiringType === 'partial') wiringRate = 8000;
+            if (wiringType === 'full') wiringRate = 14000;
+            if (wiringType === 'premium') wiringRate = 20000;
 
             const wiringCost = area * wiringRate;
             const alarmCost = state.calcData.alarmQty * 120000;
             const cameraCost = state.calcData.cameraQty * 45000;
             const intercomCost = intercom ? 65000 : 0;
-
             const total = wiringCost + alarmCost + cameraCost + intercomCost;
 
             document.getElementById('summary-wiring-cost').innerText = wiringCost.toLocaleString('hu-HU') + ' Ft';
@@ -976,41 +1132,107 @@
         }
 
         function adjustCalcQty(type, delta) {
-            if(type === 'alarm') {
+            if (type === 'alarm') {
                 state.calcData.alarmQty = Math.max(0, state.calcData.alarmQty + delta);
                 document.getElementById('calc-alarm-qty').innerText = state.calcData.alarmQty;
-            } else if(type === 'camera') {
+            } else if (type === 'camera') {
                 state.calcData.cameraQty = Math.max(0, state.calcData.cameraQty + delta);
                 document.getElementById('calc-camera-qty').innerText = state.calcData.cameraQty;
             }
             updateCalculator();
         }
 
-        function saveEstimateToProfile() {
-            if(!state.currentUser) {
+        async function saveEstimateToProfile() {
+            if (!state.currentUser) {
                 openAuthModal('login');
-                showToast("Mentéshez kérjük, jelentkezzen be!");
+                showToast('Mentéshez kérjük, jelentkezzen be!');
                 return;
             }
-            const estimate = {
-                id: Date.now(),
-                date: new Date().toLocaleDateString('hu-HU'),
-                details: `${state.calcData.area} m² / ${state.calcData.wiringType}`,
-                total: state.calcData.total
-            };
-            state.estimates.push(estimate);
-            saveState();
-            showToast("Kalkuláció elmentve a profiljához!");
+
+            try {
+                await apiFetch(API.estimates, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        area: state.calcData.area,
+                        wiring_type: state.calcData.wiringType,
+                        alarm_qty: state.calcData.alarmQty,
+                        camera_qty: state.calcData.cameraQty,
+                        intercom: state.calcData.intercom ? 1 : 0,
+                        total: state.calcData.total
+                    })
+                });
+                await loadEstimates();
+                showToast('Kalkuláció elmentve a profiljához!');
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        function getCategoryChildren(parentId) {
+            return state.categories.filter(c => c.parent_id === parentId);
+        }
+
+        function getCategoryById(id) {
+            return state.categories.find(c => c.id === id);
+        }
+
+        function renderShopCategoryControls() {
+            const select = document.getElementById('shop-category');
+            const tree = document.getElementById('shop-category-tree');
+            if (!select || !tree) return;
+
+            const roots = state.categories.filter(c => c.parent_id === null);
+            select.innerHTML = '<option value="all">Minden kategória</option>' + roots.map(root => {
+                const children = getCategoryChildren(root.id);
+                let group = `<option value="${root.id}">${esc(root.name)}</option>`;
+                group += children.map(child => `<option value="${child.id}">↳ ${esc(child.name)}</option>`).join('');
+                return group;
+            }).join('');
+
+            const active = String(state.activeShopCategoryId);
+            select.value = active;
+
+            tree.innerHTML = `<button onclick="setShopCategory('all')" class="w-full text-left px-3 py-2 rounded-lg ${active === 'all' ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-900 text-slate-200 hover:bg-slate-700'}">Minden kategória</button>` + roots.map(root => {
+                const children = getCategoryChildren(root.id);
+                return `<div class="bg-slate-900 border border-slate-700 rounded-xl p-2">
+                    <button onclick="setShopCategory('${root.id}')" class="w-full text-left px-2 py-1.5 rounded ${active === String(root.id) ? 'bg-amber-500 text-slate-950 font-bold' : 'text-white hover:bg-slate-700'}">${esc(root.name)}</button>
+                    <div class="ml-2 mt-1 space-y-1">${children.map(child => `<button onclick="setShopCategory('${child.id}')" class="w-full text-left px-2 py-1 rounded text-xs ${active === String(child.id) ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-300 hover:bg-slate-700'}">${esc(child.name)}</button>`).join('')}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function setShopCategory(id) {
+            state.activeShopCategoryId = String(id);
+            const select = document.getElementById('shop-category');
+            if (select) select.value = String(id);
+            renderShopCategoryControls();
+            renderShopProducts();
+        }
+
+        function productMatchesCategory(productCategoryId) {
+            const selectedValue = document.getElementById('shop-category')?.value || state.activeShopCategoryId;
+            state.activeShopCategoryId = selectedValue;
+            if (selectedValue === 'all') return true;
+
+            const selectedId = Number(selectedValue);
+            if (productCategoryId === selectedId) return true;
+
+            const selected = getCategoryById(selectedId);
+            if (selected && selected.parent_id === null) {
+                return getCategoryChildren(selected.id).some(child => child.id === productCategoryId);
+            }
+            return false;
         }
 
         function renderShopProducts() {
             const container = document.getElementById('shop-products-grid');
-            const search = document.getElementById('shop-search').value.toLowerCase();
-            const category = document.getElementById('shop-category').value;
+            if (!container) return;
 
+            const search = (document.getElementById('shop-search').value || '').toLowerCase();
             const filtered = state.products.filter(p => {
-                const matchSearch = p.name.toLowerCase().includes(search) || p.desc.toLowerCase().includes(search);
-                const matchCat = category === 'all' || p.category === category;
+                const desc = (p.desc || '').toLowerCase();
+                const matchSearch = p.name.toLowerCase().includes(search) || desc.includes(search);
+                const matchCat = productMatchesCategory(Number(p.category_id));
                 return matchSearch && matchCat;
             });
 
@@ -1018,35 +1240,34 @@
                 <div class="bg-slate-800 border border-slate-700 hover:border-amber-500/50 rounded-2xl p-5 flex flex-col justify-between transition-all">
                     <div>
                         <div class="w-full h-36 bg-slate-900 rounded-xl flex items-center justify-center text-4xl text-amber-400 mb-4 border border-slate-800">
-                            <i class="fa-solid ${p.icon || 'fa-box'}"></i>
+                            <i class="fa-solid ${esc(p.icon || 'fa-box')}"></i>
                         </div>
-                        <span class="text-[10px] font-bold uppercase tracking-wider bg-slate-900 text-amber-400 px-2.5 py-1 rounded border border-slate-700">${p.category}</span>
-                        <h4 class="font-bold text-white text-base mt-2">${p.name}</h4>
-                        <p class="text-xs text-slate-400 mt-1 line-clamp-2">${p.desc}</p>
+                        <span class="text-[10px] font-bold uppercase tracking-wider bg-slate-900 text-amber-400 px-2.5 py-1 rounded border border-slate-700">${esc(p.category_name || '')}</span>
+                        <h4 class="font-bold text-white text-base mt-2">${esc(p.name)}</h4>
+                        <p class="text-xs text-slate-400 mt-1 line-clamp-2">${esc(p.desc || '')}</p>
                     </div>
-
                     <div class="mt-6 pt-3 border-t border-slate-700 flex items-center justify-between">
                         <div>
                             <span class="text-xs text-slate-400 block">Raktáron: ${p.stock} db</span>
-                            <span class="text-lg font-black text-white">${p.price.toLocaleString('hu-HU')} Ft</span>
+                            <span class="text-lg font-black text-white">${Number(p.price).toLocaleString('hu-HU')} Ft</span>
                         </div>
                         <button onclick="addToCart(${p.id})" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-2.5 rounded-xl transition-colors">
                             <i class="fa-solid fa-cart-plus"></i>
                         </button>
                     </div>
                 </div>
-            `).join('');
+            `).join('') || `<p class="text-slate-400 text-sm col-span-full">Nincs találat a megadott szűrőkkel.</p>`;
         }
 
         function addToCart(productId) {
             const product = state.products.find(p => p.id === productId);
-            if(!product) return;
+            if (!product) return;
 
             const existing = state.cart.find(item => item.id === productId);
-            if(existing) {
+            if (existing) {
                 existing.qty += 1;
             } else {
-                state.cart.push({ ...product, qty: 1 });
+                state.cart.push({ id: product.id, name: product.name, price: product.price, qty: 1 });
             }
             saveState();
             updateCartBadge();
@@ -1056,7 +1277,7 @@
         function updateCartBadge() {
             const badge = document.getElementById('cart-badge');
             const totalQty = state.cart.reduce((sum, item) => sum + item.qty, 0);
-            if(totalQty > 0) {
+            if (totalQty > 0) {
                 badge.innerText = totalQty;
                 badge.classList.remove('hidden');
             } else {
@@ -1067,14 +1288,14 @@
         function toggleCartModal() {
             const modal = document.getElementById('cart-modal');
             modal.classList.toggle('hidden');
-            if(!modal.classList.contains('hidden')) renderCartItems();
+            if (!modal.classList.contains('hidden')) renderCartItems();
         }
 
         function renderCartItems() {
             const container = document.getElementById('cart-items-container');
-            if(state.cart.length === 0) {
-                container.innerHTML = `<p class="text-slate-400 text-center py-8 text-sm">A kosár jelenleg üres.</p>`;
-                document.getElementById('cart-total-price').innerText = "0 Ft";
+            if (state.cart.length === 0) {
+                container.innerHTML = '<p class="text-slate-400 text-center py-8 text-sm">A kosár jelenleg üres.</p>';
+                document.getElementById('cart-total-price').innerText = '0 Ft';
                 return;
             }
 
@@ -1084,8 +1305,8 @@
                 return `
                     <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 flex justify-between items-center">
                         <div class="pr-2">
-                            <div class="font-bold text-white text-sm">${item.name}</div>
-                            <div class="text-xs text-amber-400 font-semibold">${item.price.toLocaleString('hu-HU')} Ft / db</div>
+                            <div class="font-bold text-white text-sm">${esc(item.name)}</div>
+                            <div class="text-xs text-amber-400 font-semibold">${Number(item.price).toLocaleString('hu-HU')} Ft / db</div>
                         </div>
                         <div class="flex items-center space-x-2">
                             <button onclick="updateCartQty(${index}, -1)" class="bg-slate-700 text-white w-6 h-6 rounded font-bold text-xs">-</button>
@@ -1096,106 +1317,150 @@
                 `;
             }).join('');
 
-            document.getElementById('cart-total-price').innerText = total.toLocaleString('hu-HU') + " Ft";
+            document.getElementById('cart-total-price').innerText = total.toLocaleString('hu-HU') + ' Ft';
         }
 
         function updateCartQty(index, delta) {
             state.cart[index].qty += delta;
-            if(state.cart[index].qty <= 0) state.cart.splice(index, 1);
+            if (state.cart[index].qty <= 0) state.cart.splice(index, 1);
             saveState();
             updateCartBadge();
             renderCartItems();
         }
 
-        function checkoutCart() {
-            if(state.cart.length === 0) return;
-            const newOrder = {
-                id: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
-                customer: state.currentUser ? state.currentUser.name : "Vendég Vásárló",
-                total: state.cart.reduce((sum, i) => sum + (i.price * i.qty), 0),
-                date: new Date().toISOString().split('T')[0],
-                status: "Feldolgozás alatt"
-            };
-            state.orders.unshift(newOrder);
-            state.cart = [];
-            saveState();
-            updateCartBadge();
-            toggleCartModal();
-            showToast("Sikeres rendelés! Köszönjük a vásárlást.");
+        async function checkoutCart() {
+            if (state.cart.length === 0) return;
+            if (!state.currentUser) {
+                openAuthModal('login');
+                showToast('Rendelés leadásához bejelentkezés szükséges.');
+                return;
+            }
+            try {
+                await apiFetch(API.orders, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'create', items: state.cart })
+                });
+                state.cart = [];
+                saveState();
+                updateCartBadge();
+                toggleCartModal();
+                await loadOrders();
+                await loadProducts();
+                showToast('Sikeres rendelés! Köszönjük a vásárlást.');
+            } catch (err) {
+                showToast(err.message);
+            }
         }
 
         function openAuthModal(tab) {
             document.getElementById('auth-modal').classList.remove('hidden');
             switchAuthTab(tab);
         }
+
         function closeAuthModal() {
             document.getElementById('auth-modal').classList.add('hidden');
         }
+
         function switchAuthTab(tab) {
-            if(tab === 'login') {
+            if (tab === 'login') {
                 document.getElementById('auth-form-login').classList.remove('hidden');
                 document.getElementById('auth-form-register').classList.add('hidden');
-                document.getElementById('auth-tab-login').className = "w-1/2 py-2 font-bold text-amber-400 border-b-2 border-amber-500";
-                document.getElementById('auth-tab-register').className = "w-1/2 py-2 font-medium text-slate-400 border-b-2 border-transparent";
+                document.getElementById('auth-tab-login').className = 'w-1/2 py-2 font-bold text-amber-400 border-b-2 border-amber-500';
+                document.getElementById('auth-tab-register').className = 'w-1/2 py-2 font-medium text-slate-400 border-b-2 border-transparent';
             } else {
                 document.getElementById('auth-form-login').classList.add('hidden');
                 document.getElementById('auth-form-register').classList.remove('hidden');
-                document.getElementById('auth-tab-login').className = "w-1/2 py-2 font-medium text-slate-400 border-b-2 border-transparent";
-                document.getElementById('auth-tab-register').className = "w-1/2 py-2 font-bold text-amber-400 border-b-2 border-amber-500";
+                document.getElementById('auth-tab-login').className = 'w-1/2 py-2 font-medium text-slate-400 border-b-2 border-transparent';
+                document.getElementById('auth-tab-register').className = 'w-1/2 py-2 font-bold text-amber-400 border-b-2 border-amber-500';
             }
         }
 
-        function handleLoginSubmit(e) {
+        async function handleLoginSubmit(e) {
             e.preventDefault();
             const email = document.getElementById('login-email').value;
-            state.currentUser = { name: email.split('@')[0], email: email, role: 'user' };
-            saveState();
-            updateAuthUI();
-            closeAuthModal();
-            showToast("Sikeres bejelentkezés!");
+            const password = document.getElementById('login-password').value;
+
+            try {
+                await apiFetch(`${API.auth}?action=login`, {
+                    method: 'POST',
+                    body: JSON.stringify({ email, password })
+                });
+                await refreshData();
+                closeAuthModal();
+                showToast('Sikeres bejelentkezés!');
+            } catch (err) {
+                showToast(err.message);
+            }
         }
 
-        function handleRegisterSubmit(e) {
+        async function handleRegisterSubmit(e) {
             e.preventDefault();
             const name = document.getElementById('reg-name').value;
             const email = document.getElementById('reg-email').value;
-            state.currentUser = { name: name, email: email, role: 'user' };
-            saveState();
-            updateAuthUI();
-            closeAuthModal();
-            showToast("Fiók sikeresen létrehozva!");
+            const password = document.getElementById('reg-password').value;
+
+            try {
+                await apiFetch(`${API.auth}?action=register`, {
+                    method: 'POST',
+                    body: JSON.stringify({ name, email, password })
+                });
+                await refreshData();
+                closeAuthModal();
+                showToast('Fiók sikeresen létrehozva!');
+            } catch (err) {
+                showToast(err.message);
+            }
         }
 
-        function loginDemoAdmin() {
-            state.currentUser = { name: "Tamás Bau Admin", email: "admin@tamasbau.hu", role: 'admin' };
-            saveState();
-            updateAuthUI();
-            closeAuthModal();
-            showToast("Bejelentkezve Adminisztrátorként!");
-            showPage('admin');
+        async function loginDemoAdmin() {
+            const password = prompt('Demo admin jelszó:');
+            if (!password) return;
+            try {
+                await apiFetch(`${API.auth}?action=login`, {
+                    method: 'POST',
+                    body: JSON.stringify({ email: 'admin@tamasbau.hu', password })
+                });
+                await refreshData();
+                closeAuthModal();
+                showToast('Bejelentkezve Adminisztrátorként!');
+                showPage('admin');
+            } catch (err) {
+                showToast('Demo admin bejelentkezés sikertelen: ' + err.message);
+            }
         }
 
-        function logoutUser() {
+        async function logoutUser() {
+            try {
+                await apiFetch(`${API.auth}?action=logout`, { method: 'POST', body: JSON.stringify({}) });
+            } catch (_) {}
             state.currentUser = null;
-            saveState();
+            state.csrfToken = null;
+            state.orders = [];
+            state.estimates = [];
+            state.users = [];
+            state.quotes = [];
+            localStorage.removeItem('tb_csrf');
             updateAuthUI();
             showPage('home');
-            showToast("Kijelentkezve.");
+            showToast('Kijelentkezve.');
         }
 
         function updateAuthUI() {
             const container = document.getElementById('auth-buttons-container');
             const statusText = document.getElementById('user-status-text');
 
-            if(state.currentUser) {
+            if (state.currentUser) {
                 statusText.innerText = `Bejelentkezve: ${state.currentUser.name}`;
                 container.innerHTML = `
-                    <button onclick="showPage('profile')" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all">
-                        <i class="fa-solid fa-user-circle mr-1"></i> Fiókom
-                    </button>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="showPage('profile')" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all">
+                            <i class="fa-solid fa-user-circle mr-1"></i> Fiókom
+                        </button>
+                        <button onclick="logoutUser()" class="hidden sm:inline-flex bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-xl text-sm">Kilépés</button>
+                    </div>
                 `;
             } else {
-                statusText.innerText = "Vendég munkamenet";
+                statusText.innerText = 'Vendég munkamenet';
                 container.innerHTML = `
                     <button onclick="openAuthModal('login')" class="hidden sm:inline-flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl border border-slate-700 text-sm font-medium transition-all">
                         <i class="fa-solid fa-right-to-bracket text-amber-400"></i>
@@ -1206,7 +1471,7 @@
         }
 
         function renderUserProfile() {
-            if(!state.currentUser) return;
+            if (!state.currentUser) return;
             document.getElementById('profile-user-name').innerText = state.currentUser.name;
             document.getElementById('profile-user-email').innerText = state.currentUser.email;
 
@@ -1214,12 +1479,12 @@
             ordersList.innerHTML = state.orders.map(o => `
                 <div class="bg-slate-900 p-3 rounded-xl border border-slate-700 flex justify-between items-center text-xs">
                     <div>
-                        <div class="font-bold text-white">${o.id}</div>
-                        <div class="text-slate-400">${o.date}</div>
+                        <div class="font-bold text-white">#${o.id}</div>
+                        <div class="text-slate-400">${esc(o.date)}</div>
                     </div>
                     <div class="text-right">
-                        <div class="font-bold text-amber-400">${o.total.toLocaleString('hu-HU')} Ft</div>
-                        <div class="text-emerald-400">${o.status}</div>
+                        <div class="font-bold text-amber-400">${Number(o.total).toLocaleString('hu-HU')} Ft</div>
+                        <div class="text-emerald-400">${esc(o.status)}</div>
                     </div>
                 </div>
             `).join('') || '<p class="text-slate-500 text-xs">Még nincs rendelése.</p>';
@@ -1228,70 +1493,77 @@
             estimatesList.innerHTML = state.estimates.map(e => `
                 <div class="bg-slate-900 p-3 rounded-xl border border-slate-700 flex justify-between items-center text-xs">
                     <div>
-                        <div class="font-bold text-white">${e.details}</div>
-                        <div class="text-slate-400">${e.date}</div>
+                        <div class="font-bold text-white">${e.area} m² / ${esc(e.wiring_type)}</div>
+                        <div class="text-slate-400">${esc(e.date)}</div>
                     </div>
-                    <div class="font-bold text-amber-400">${e.total.toLocaleString('hu-HU')} Ft</div>
+                    <div class="font-bold text-amber-400">${Number(e.total).toLocaleString('hu-HU')} Ft</div>
                 </div>
             `).join('') || '<p class="text-slate-500 text-xs">Még nincs mentett kalkuláció.</p>';
         }
 
-        function handleContactSubmit(e) {
+        async function handleContactSubmit(e) {
             e.preventDefault();
             const name = document.getElementById('contact-name').value;
             const phone = document.getElementById('contact-phone').value;
-            const type = document.getElementById('contact-type').value;
+            const email = document.getElementById('contact-email').value;
+            const work_type = document.getElementById('contact-type').value;
             const message = document.getElementById('contact-message').value;
 
-            state.quotes.unshift({
-                id: Date.now(),
-                name,
-                phone,
-                type,
-                message,
-                date: new Date().toISOString().split('T')[0]
-            });
-            saveState();
-            e.target.reset();
-            showToast("Köszönjük! Árajánlatkérését elküldtük.");
-        }
-
-        function toggleAdminView() {
-            if(!state.currentUser || state.currentUser.role !== 'admin') {
-                loginDemoAdmin();
-            } else {
-                showPage('admin');
+            try {
+                await apiFetch(API.quotes, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'create', name, phone, email, work_type, message })
+                });
+                e.target.reset();
+                showToast('Köszönjük! Árajánlatkérését elküldtük.');
+                if (state.currentUser?.role === 'admin') await loadQuotes();
+            } catch (err) {
+                showToast(err.message);
             }
         }
 
-        function switchAdminTab(tab) {
+        function toggleAdminView() {
+            if (!state.currentUser || state.currentUser.role !== 'admin') {
+                openAuthModal('login');
+                showToast('Admin nézethez jelentkezzen be admin fiókkal.');
+                return;
+            }
+            showPage('admin');
+        }
+
+        async function switchAdminTab(tab) {
             document.querySelectorAll('.admin-tab-btn').forEach(btn => {
-                btn.className = "admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white";
+                btn.className = 'admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white';
             });
             document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.add('hidden'));
 
-            document.getElementById(`tab-btn-${tab}`).className = "admin-tab-btn py-3 px-5 text-sm font-bold border-b-2 border-amber-500 text-amber-400";
+            document.getElementById(`tab-btn-${tab}`).className = 'admin-tab-btn py-3 px-5 text-sm font-bold border-b-2 border-amber-500 text-amber-400';
             document.getElementById(`admin-tab-${tab}`).classList.remove('hidden');
 
-            renderAdminTab(tab);
+            await renderAdminTab(tab);
         }
 
-        function renderAdminTab(tab) {
-            if(tab === 'overview') {
-                const totalRev = state.orders.reduce((sum, o) => sum + o.total, 0);
-                document.getElementById('kpi-revenue').innerText = totalRev.toLocaleString('hu-HU') + " Ft";
-                document.getElementById('kpi-orders-count').innerText = state.orders.length + " db";
-                document.getElementById('kpi-quotes-count').innerText = state.quotes.length + " db";
-                document.getElementById('kpi-users-count').innerText = "14 fő";
-
+        async function renderAdminTab(tab) {
+            if (tab === 'overview') {
+                if (!state.orders.length) await loadOrders();
+                if (!state.quotes.length) await loadQuotes();
+                if (!state.users.length) await loadUsers();
+                if (!state.products.length) await loadProducts();
+                const totalRev = state.orders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+                document.getElementById('kpi-revenue').innerText = totalRev.toLocaleString('hu-HU') + ' Ft';
+                document.getElementById('kpi-orders-count').innerText = state.orders.length + ' db';
+                document.getElementById('kpi-quotes-count').innerText = state.quotes.filter(q => q.status === 'new').length + ' db';
+                document.getElementById('kpi-users-count').innerText = state.users.filter(u => Number(u.is_active) === 1).length + ' fő';
                 renderAdminChart();
-            } else if(tab === 'products') {
+            } else if (tab === 'products') {
+                if (!state.products.length) await loadProducts();
+                if (!state.categories.length) await loadCategories();
                 const table = document.getElementById('admin-products-table');
                 table.innerHTML = state.products.map(p => `
                     <tr class="hover:bg-slate-700/50">
-                        <td class="p-4 font-bold text-white">${p.name}</td>
-                        <td class="p-4"><span class="bg-slate-900 text-amber-400 text-xs px-2 py-0.5 rounded border border-slate-700">${p.category}</span></td>
-                        <td class="p-4 font-semibold">${p.price.toLocaleString('hu-HU')} Ft</td>
+                        <td class="p-4 font-bold text-white">${esc(p.name)}</td>
+                        <td class="p-4"><span class="bg-slate-900 text-amber-400 text-xs px-2 py-0.5 rounded border border-slate-700">${esc(p.category_name || '')}</span></td>
+                        <td class="p-4 font-semibold">${Number(p.price).toLocaleString('hu-HU')} Ft</td>
                         <td class="p-4">${p.stock} db</td>
                         <td class="p-4 text-right space-x-2">
                             <button onclick="editProduct(${p.id})" class="text-sky-400 hover:underline"><i class="fa-solid fa-pen"></i> Szerkeszt</button>
@@ -1299,57 +1571,187 @@
                         </td>
                     </tr>
                 `).join('');
-            } else if(tab === 'orders') {
+            } else if (tab === 'categories') {
+                if (!state.categories.length) await loadCategories();
+                resetCategoryForm();
+                renderCategoryRows();
+            } else if (tab === 'orders') {
+                if (!state.orders.length) await loadOrders();
+                const statuses = ['Feldolgozás alatt', 'Teljesítve', 'Lemondva'];
                 const table = document.getElementById('admin-orders-table');
                 table.innerHTML = state.orders.map(o => `
                     <tr class="hover:bg-slate-700/50">
-                        <td class="p-4 font-mono text-xs text-amber-400">${o.id}</td>
-                        <td class="p-4 font-semibold text-white">${o.customer}</td>
-                        <td class="p-4">${o.total.toLocaleString('hu-HU')} Ft</td>
-                        <td class="p-4 text-xs text-slate-400">${o.date}</td>
-                        <td class="p-4"><span class="bg-emerald-500/10 text-emerald-400 text-xs px-2 py-1 rounded">${o.status}</span></td>
+                        <td class="p-4 font-mono text-xs text-amber-400">#${o.id}</td>
+                        <td class="p-4 font-semibold text-white">${esc(o.customer)}</td>
+                        <td class="p-4">${Number(o.total).toLocaleString('hu-HU')} Ft</td>
+                        <td class="p-4 text-xs text-slate-400">${esc(o.date)}</td>
+                        <td class="p-4"><span class="bg-emerald-500/10 text-emerald-400 text-xs px-2 py-1 rounded">${esc(o.status)}</span></td>
                         <td class="p-4 text-right">
-                            <button onclick="showToast('Rendelés állapota frissítve')" class="text-xs bg-slate-700 hover:bg-slate-600 px-2.5 py-1 rounded text-white">Kezelem</button>
+                            <select onchange="updateOrderStatus(${o.id}, this.value)" class="bg-slate-700 text-xs rounded px-2 py-1 border border-slate-600">${statuses.map(s => `<option value="${s}" ${s === o.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
                         </td>
                     </tr>
                 `).join('');
-            } else if(tab === 'quotes') {
+            } else if (tab === 'quotes') {
+                if (!state.quotes.length) await loadQuotes();
+                const statuses = ['new', 'contacted', 'closed'];
                 const table = document.getElementById('admin-quotes-table');
                 table.innerHTML = state.quotes.map(q => `
                     <tr class="hover:bg-slate-700/50">
                         <td class="p-4">
-                            <div class="font-bold text-white">${q.name}</div>
-                            <div class="text-xs text-slate-400">${q.phone}</div>
+                            <div class="font-bold text-white">${esc(q.name)}</div>
+                            <div class="text-xs text-slate-400">${esc(q.phone)} / ${esc(q.email)}</div>
                         </td>
-                        <td class="p-4 text-amber-400 text-xs font-semibold">${q.type}</td>
-                        <td class="p-4 text-xs max-w-xs truncate">${q.message}</td>
-                        <td class="p-4 text-xs text-slate-400">${q.date}</td>
-                        <td class="p-4 text-right">
-                            <a href="tel:${q.phone}" class="bg-amber-500 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg hover:bg-amber-600 inline-block"><i class="fa-solid fa-phone mr-1"></i> Hívás</a>
+                        <td class="p-4 text-amber-400 text-xs font-semibold">${esc(q.type)}</td>
+                        <td class="p-4 text-xs max-w-xs truncate">${esc(q.message)}</td>
+                        <td class="p-4 text-xs text-slate-400">${esc(q.date)}</td>
+                        <td class="p-4 text-right space-x-2">
+                            <select onchange="updateQuoteStatus(${q.id}, this.value)" class="bg-slate-700 text-xs rounded px-2 py-1 border border-slate-600">${statuses.map(s => `<option value="${s}" ${s === q.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
+                            <button onclick="deleteQuote(${q.id})" class="text-rose-400 hover:underline text-xs"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `).join('');
+            } else if (tab === 'users') {
+                if (!state.users.length) await loadUsers();
+                const table = document.getElementById('admin-users-table');
+                table.innerHTML = state.users.map(u => `
+                    <tr class="hover:bg-slate-700/50">
+                        <td class="p-4 font-bold text-white">${esc(u.name)}</td>
+                        <td class="p-4 text-xs">${esc(u.email)}</td>
+                        <td class="p-4">
+                            <select onchange="updateUserRole(${u.id}, this.value)" class="bg-slate-700 text-xs rounded px-2 py-1 border border-slate-600">
+                                <option value="user" ${u.role === 'user' ? 'selected' : ''}>user</option>
+                                <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
+                            </select>
+                        </td>
+                        <td class="p-4 text-xs text-slate-400">${esc(String(u.created_at).slice(0, 10))}</td>
+                        <td class="p-4"><span class="text-xs ${Number(u.is_active) === 1 ? 'text-emerald-400' : 'text-rose-400'}">${Number(u.is_active) === 1 ? 'Aktív' : 'Tiltott'}</span></td>
+                        <td class="p-4 text-right space-x-2">
+                            <button onclick="toggleUserStatus(${u.id}, ${Number(u.is_active) === 1 ? 0 : 1})" class="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-white">${Number(u.is_active) === 1 ? 'Tiltás' : 'Engedélyezés'}</button>
+                            <button onclick="deleteUser(${u.id})" class="text-xs text-rose-400 hover:underline">Törlés</button>
                         </td>
                     </tr>
                 `).join('');
             }
         }
 
+        function populateCategoryParentSelect() {
+            const parentSelect = document.getElementById('cat-parent');
+            if (!parentSelect) return;
+            const roots = state.categories.filter(c => c.parent_id === null);
+            parentSelect.innerHTML = '<option value="">Nincs (fő kategória)</option>' + roots.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+        }
+
+        function renderCategoryRows() {
+            const table = document.getElementById('admin-categories-table');
+            const roots = state.categories.filter(c => c.parent_id === null);
+            const rows = [];
+            roots.forEach(root => {
+                rows.push(`<tr><td class="p-4 font-bold text-white">${esc(root.name)}</td><td class="p-4 text-xs text-amber-400">Fő kategória</td><td class="p-4 text-right space-x-2"><button onclick="editCategory(${root.id})" class="text-sky-400 hover:underline">Szerkeszt</button><button onclick="deleteCategory(${root.id})" class="text-rose-400 hover:underline">Töröl</button></td></tr>`);
+                getCategoryChildren(root.id).forEach(child => {
+                    rows.push(`<tr><td class="p-4 pl-8 text-slate-200">↳ ${esc(child.name)}</td><td class="p-4 text-xs text-slate-400">Alkategória</td><td class="p-4 text-right space-x-2"><button onclick="editCategory(${child.id})" class="text-sky-400 hover:underline">Szerkeszt</button><button onclick="deleteCategory(${child.id})" class="text-rose-400 hover:underline">Töröl</button></td></tr>`);
+                });
+            });
+            table.innerHTML = rows.join('');
+        }
+
+        function resetCategoryForm() {
+            document.getElementById('cat-id').value = '';
+            document.getElementById('cat-name').value = '';
+            document.getElementById('cat-parent').value = '';
+            document.getElementById('cat-submit-btn').innerText = 'Kategória Mentése';
+        }
+
+        async function handleCategoryFormSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('cat-id').value;
+            const name = document.getElementById('cat-name').value;
+            const parent_id = document.getElementById('cat-parent').value || null;
+
+            try {
+                await apiFetch(API.categories, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: id ? 'update' : 'create', id: id || undefined, name, parent_id })
+                });
+                resetCategoryForm();
+                await loadCategories();
+                renderCategoryRows();
+                showToast('Kategória mentve.');
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        function editCategory(id) {
+            const cat = getCategoryById(id);
+            if (!cat) return;
+            document.getElementById('cat-id').value = cat.id;
+            document.getElementById('cat-name').value = cat.name;
+            document.getElementById('cat-parent').value = cat.parent_id || '';
+            document.getElementById('cat-submit-btn').innerText = 'Kategória Frissítése';
+        }
+
+        async function deleteCategory(id) {
+            if (!confirm('Biztosan törli a kategóriát?')) return;
+            try {
+                await apiFetch(API.categories, { method: 'POST', body: JSON.stringify({ action: 'delete', id }) });
+                await loadCategories();
+                renderCategoryRows();
+                showToast('Kategória törölve.');
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        function syncProductMainCategories() {
+            const select = document.getElementById('prod-main-category');
+            if (!select) return;
+            const roots = state.categories.filter(c => c.parent_id === null);
+            select.innerHTML = roots.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+            syncProductSubcategories();
+        }
+
+        function syncProductSubcategories() {
+            const main = document.getElementById('prod-main-category');
+            const sub = document.getElementById('prod-category');
+            if (!main || !sub) return;
+
+            const mainId = Number(main.value || 0);
+            const subs = getCategoryChildren(mainId);
+            sub.innerHTML = subs.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+
+            if (!subs.length) {
+                const selectedMain = getCategoryById(mainId);
+                sub.innerHTML = selectedMain ? `<option value="${selectedMain.id}">${esc(selectedMain.name)}</option>` : '';
+            }
+        }
+
         function openProductModal(prodId = null) {
-            document.getElementById('product-modal').classList.remove('hidden');
-            if(prodId) {
+            if (prodId) {
                 const p = state.products.find(x => x.id === prodId);
-                document.getElementById('product-modal-title').innerText = "Termék Szerkesztése";
+                if (!p) return;
+                document.getElementById('product-modal').classList.remove('hidden');
+                syncProductMainCategories();
+                document.getElementById('product-modal-title').innerText = 'Termék Szerkesztése';
                 document.getElementById('prod-id').value = p.id;
                 document.getElementById('prod-name').value = p.name;
-                document.getElementById('prod-category').value = p.category;
+                const category = getCategoryById(Number(p.category_id));
+                const mainId = category?.parent_id || category?.id;
+                document.getElementById('prod-main-category').value = String(mainId || '');
+                syncProductSubcategories();
+                document.getElementById('prod-category').value = String(p.category_id);
                 document.getElementById('prod-price').value = p.price;
                 document.getElementById('prod-stock').value = p.stock;
                 document.getElementById('prod-icon').value = p.icon || 'fa-box';
-                document.getElementById('prod-desc').value = p.desc;
+                document.getElementById('prod-desc').value = p.desc || '';
             } else {
-                document.getElementById('product-modal-title').innerText = "Új Termék Hozzáadása";
+                document.getElementById('product-modal').classList.remove('hidden');
+                syncProductMainCategories();
+                document.getElementById('product-modal-title').innerText = 'Új Termék Hozzáadása';
                 document.getElementById('prod-id').value = '';
                 document.getElementById('prod-name').value = '';
                 document.getElementById('prod-price').value = '';
                 document.getElementById('prod-stock').value = 10;
+                document.getElementById('prod-icon').value = 'fa-box';
                 document.getElementById('prod-desc').value = '';
             }
         }
@@ -1358,72 +1760,133 @@
             document.getElementById('product-modal').classList.add('hidden');
         }
 
-        function handleProductFormSubmit(e) {
+        async function handleProductFormSubmit(e) {
             e.preventDefault();
             const id = document.getElementById('prod-id').value;
             const name = document.getElementById('prod-name').value;
-            const category = document.getElementById('prod-category').value;
-            const price = parseInt(document.getElementById('prod-price').value);
-            const stock = parseInt(document.getElementById('prod-stock').value);
+            const category_id = Number(document.getElementById('prod-category').value);
+            const price = parseInt(document.getElementById('prod-price').value, 10);
+            const stock = parseInt(document.getElementById('prod-stock').value, 10);
             const icon = document.getElementById('prod-icon').value || 'fa-box';
             const desc = document.getElementById('prod-desc').value;
 
-            if(id) {
-                const index = state.products.findIndex(p => p.id == id);
-                if(index !== -1) {
-                    state.products[index] = { id: parseInt(id), name, category, price, stock, icon, desc };
-                }
-            } else {
-                const newProd = { id: Date.now(), name, category, price, stock, icon, desc };
-                state.products.push(newProd);
+            try {
+                await apiFetch(API.products, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: id ? 'update' : 'create', id: id || undefined, name, category_id, price, stock, icon, desc })
+                });
+                closeProductModal();
+                await Promise.all([loadProducts(), loadCategories()]);
+                renderAdminTab('products');
+                showToast('Adatbázis frissítve!');
+            } catch (err) {
+                showToast(err.message);
             }
-
-            saveState();
-            closeProductModal();
-            renderAdminTab('products');
-            showToast("Adatbázis frissítve!");
         }
 
         function editProduct(id) {
             openProductModal(id);
         }
 
-        function deleteProduct(id) {
-            state.products = state.products.filter(p => p.id !== id);
-            saveState();
-            renderAdminTab('products');
-            showToast("Termék törölve!");
+        async function deleteProduct(id) {
+            if (!confirm('Biztosan törli a terméket?')) return;
+            try {
+                await apiFetch(API.products, { method: 'POST', body: JSON.stringify({ action: 'delete', id }) });
+                await loadProducts();
+                renderAdminTab('products');
+                showToast('Termék törölve!');
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        async function updateOrderStatus(id, status) {
+            try {
+                await apiFetch(API.orders, { method: 'POST', body: JSON.stringify({ action: 'update_status', id, status }) });
+                await loadOrders();
+                renderAdminTab('orders');
+                showToast('Rendelés állapota frissítve');
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        async function updateQuoteStatus(id, status) {
+            try {
+                await apiFetch(API.quotes, { method: 'POST', body: JSON.stringify({ action: 'update_status', id, status }) });
+                await loadQuotes();
+                renderAdminTab('quotes');
+                showToast('Ajánlatkérés státusza frissítve');
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        async function deleteQuote(id) {
+            if (!confirm('Biztosan törli az ajánlatkérést?')) return;
+            try {
+                await apiFetch(API.quotes, { method: 'POST', body: JSON.stringify({ action: 'delete', id }) });
+                await loadQuotes();
+                renderAdminTab('quotes');
+                showToast('Ajánlatkérés törölve');
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        async function updateUserRole(id, role) {
+            try {
+                await apiFetch(API.users, { method: 'POST', body: JSON.stringify({ action: 'update', id, role }) });
+                await loadUsers();
+                renderAdminTab('users');
+                showToast('Szerepkör frissítve.');
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        async function toggleUserStatus(id, is_active) {
+            try {
+                await apiFetch(API.users, { method: 'POST', body: JSON.stringify({ action: 'update', id, is_active }) });
+                await loadUsers();
+                renderAdminTab('users');
+                showToast('Felhasználó állapota frissítve.');
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        async function deleteUser(id) {
+            if (!confirm('Biztosan törli a felhasználót?')) return;
+            try {
+                await apiFetch(API.users, { method: 'POST', body: JSON.stringify({ action: 'delete', id }) });
+                await loadUsers();
+                renderAdminTab('users');
+                showToast('Felhasználó törölve.');
+            } catch (err) {
+                showToast(err.message);
+            }
         }
 
         let revenueChart = null;
         function renderAdminChart() {
             const ctx = document.getElementById('adminRevenueChart');
-            if(!ctx) return;
-            if(revenueChart) revenueChart.destroy();
+            if (!ctx) return;
+            if (revenueChart) revenueChart.destroy();
 
             revenueChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: ['Jan', 'Feb', 'Már', 'Ápr', 'Máj', 'Jún'],
                     datasets: [
-                        {
-                            label: 'Villanyszerelés (ezer Ft)',
-                            data: [850, 1200, 950, 1400, 1100, 1600],
-                            backgroundColor: '#f59e0b'
-                        },
-                        {
-                            label: 'Riasztó & Kamera (ezer Ft)',
-                            data: [600, 900, 1100, 850, 1300, 1500],
-                            backgroundColor: '#0284c7'
-                        }
+                        { label: 'Villanyszerelés (ezer Ft)', data: [850, 1200, 950, 1400, 1100, 1600], backgroundColor: '#f59e0b' },
+                        { label: 'Riasztó & Kamera (ezer Ft)', data: [600, 900, 1100, 850, 1300, 1500], backgroundColor: '#0284c7' }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { labels: { color: '#94a3b8' } }
-                    },
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
                     scales: {
                         x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
                         y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
@@ -1432,10 +1895,14 @@
             });
         }
 
-        window.onload = function() {
-            updateAuthUI();
-            updateCartBadge();
+        window.onload = async function() {
+            try {
+                await refreshData();
+            } catch (err) {
+                showToast('API kapcsolat hiba: ' + err.message);
+            }
             updateCalculator();
+            renderShopProducts();
         };
     </script>
 </body>
