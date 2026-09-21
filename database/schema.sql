@@ -55,11 +55,11 @@ CREATE TABLE orders (
 CREATE TABLE order_items (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   order_id INT UNSIGNED NOT NULL,
-  product_id INT UNSIGNED NOT NULL,
+  product_id INT UNSIGNED NULL,
   qty INT UNSIGNED NOT NULL,
   unit_price INT UNSIGNED NOT NULL,
   CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-  CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
+  CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE quotes (
@@ -87,9 +87,9 @@ CREATE TABLE saved_estimates (
 ) ENGINE=InnoDB;
 
 INSERT INTO users (name, email, password_hash, role, phone, is_active) VALUES
-('Tamás Bau Admin', 'admin@tamasbau.hu', '$2y$10$aTBMTjL51X3P4y8wP/B7kObs9VMklyuYbvTkTAsE3UkEObYWrh0US', 'admin', '+36 (30) 123-4567', 1),
-('Nagy Péter', 'nagy.peter@example.hu', '$2y$10$aTBMTjL51X3P4y8wP/B7kObs9VMklyuYbvTkTAsE3UkEObYWrh0US', 'user', '+36 30 222 1111', 1),
-('Szabó Éva', 'szabo.eva@example.hu', '$2y$10$aTBMTjL51X3P4y8wP/B7kObs9VMklyuYbvTkTAsE3UkEObYWrh0US', 'user', '+36 30 333 2222', 1);
+('Tamás Bau Admin', 'admin@tamasbau.hu', '$2y$10$MQrhuqpNXpFmNwG56je1XemeyoWzHhlMBOateSUfcq5zkr8mpKIl6', 'admin', '+36 (30) 123-4567', 1),
+('Nagy Péter', 'nagy.peter@example.hu', '$2y$10$wyjWKleoJ76qtUVoSWxXbevwc9cjvdSYZWH5ILdSZpyFwx3ke3RuS', 'user', '+36 30 222 1111', 1),
+('Szabó Éva', 'szabo.eva@example.hu', '$2y$10$QJwbtBoUexoM1F2BBmiJAu7bRePgEZ/RHTu4o4o3fsrBzW70MJUrq', 'user', '+36 30 333 2222', 1);
 
 INSERT INTO categories (id, name, slug, parent_id) VALUES
 (1, 'Riasztórendszerek', 'riasztorendszerek', NULL),

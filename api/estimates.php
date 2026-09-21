@@ -37,11 +37,12 @@ if ($method === 'POST') {
     $alarmQty = max(0, (int) ($payload['alarm_qty'] ?? 0));
     $cameraQty = max(0, (int) ($payload['camera_qty'] ?? 0));
     $intercom = ((int) ($payload['intercom'] ?? 0)) === 1 ? 1 : 0;
-    $total = max(0, (int) ($payload['total'] ?? 0));
+    $wiringRates = ['partial' => 8000, 'full' => 14000, 'premium' => 20000];
 
-    if ($area <= 0 || $wiringType === '') {
+    if ($area <= 0 || !isset($wiringRates[$wiringType])) {
         send_json(['ok' => false, 'error' => 'Érvénytelen kalkulációs adatok.'], 422);
     }
+    $total = ($area * $wiringRates[$wiringType]) + ($alarmQty * 120000) + ($cameraQty * 45000) + ($intercom === 1 ? 65000 : 0);
 
     $stmt = db()->prepare('INSERT INTO saved_estimates (user_id, area, wiring_type, alarm_qty, camera_qty, intercom, total) VALUES (?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([(int) $user['id'], $area, $wiringType, $alarmQty, $cameraQty, $intercom, $total]);

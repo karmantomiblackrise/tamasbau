@@ -86,6 +86,13 @@ if ($method === 'POST') {
 
         $stmt = db()->prepare('UPDATE products SET name = ?, category_id = ?, price = ?, stock = ?, icon = ?, description = ? WHERE id = ?');
         $stmt->execute([$name, $categoryId, $price, $stock, $icon ?: 'fa-box', $description, $id]);
+        if ($stmt->rowCount() === 0) {
+            $exists = db()->prepare('SELECT id FROM products WHERE id = ? LIMIT 1');
+            $exists->execute([$id]);
+            if (!$exists->fetch()) {
+                send_json(['ok' => false, 'error' => 'Termék nem található.'], 404);
+            }
+        }
         send_json(['ok' => true]);
     }
 
@@ -94,9 +101,15 @@ if ($method === 'POST') {
         if ($id <= 0) {
             send_json(['ok' => false, 'error' => 'Érvénytelen termék azonosító.'], 422);
         }
-
-        $stmt = db()->prepare('DELETE FROM products WHERE id = ?');
-        $stmt->execute([$id]);
+        try {
+            $stmt = db()->prepare('DELETE FROM products WHERE id = ?');
+            $stmt->execute([$id]);
+        } catch (PDOException $e) {
+            send_json(['ok' => false, 'error' => 'A már rendelt termék nem törölhető közvetlenül.'], 422);
+        }
+        if ($stmt->rowCount() === 0) {
+            send_json(['ok' => false, 'error' => 'Termék nem található.'], 404);
+        }
         send_json(['ok' => true]);
     }
 }

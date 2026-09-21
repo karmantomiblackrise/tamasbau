@@ -603,7 +603,7 @@
                         <div class="text-xs text-slate-400 mt-1">Webshop forgalom</div>
                     </div>
                     <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
-                        <div class="text-xs text-slate-400 font-medium">Függő Ajánlatkérések</div>
+                        <div class="text-xs text-slate-400 font-medium">Új Ajánlatkérések</div>
                         <div id="kpi-quotes-count" class="text-2xl font-black text-sky-400 mt-2">0 db</div>
                         <div class="text-xs text-sky-400 mt-1">Azonnali intézkedést igényel</div>
                     </div>
@@ -663,7 +663,7 @@
                                 <label class="block text-xs text-slate-300 mb-1">Szülő kategória (opcionális)</label>
                                 <select id="cat-parent" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm"></select>
                             </div>
-                            <button type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">
+                            <button id="cat-submit-btn" type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">
                                 Kategória Mentése
                             </button>
                         </form>
@@ -971,6 +971,7 @@
             categories: [],
             cart: JSON.parse(localStorage.getItem('tb_cart') || '[]'),
             currentUser: null,
+            csrfToken: localStorage.getItem('tb_csrf') || null,
             estimates: [],
             activeShopCategoryId: 'all',
             calcData: { area: 70, wiringType: 'full', alarmQty: 1, cameraQty: 2, intercom: false, total: 0 }
@@ -986,9 +987,13 @@
         }
 
         async function apiFetch(url, options = {}) {
+            const mergedHeaders = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+            if (state.csrfToken) {
+                mergedHeaders['X-CSRF-Token'] = state.csrfToken;
+            }
             const response = await fetch(url, {
                 credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+                headers: mergedHeaders,
                 ...options,
             });
             const data = await response.json().catch(() => ({}));
@@ -1006,8 +1011,12 @@
             try {
                 const data = await apiFetch(`${API.auth}?action=me`);
                 state.currentUser = data.user || null;
+                state.csrfToken = data.csrf_token || state.csrfToken;
+                if (state.csrfToken) localStorage.setItem('tb_csrf', state.csrfToken);
             } catch {
                 state.currentUser = null;
+                state.csrfToken = null;
+                localStorage.removeItem('tb_csrf');
             }
         }
 
@@ -1067,20 +1076,19 @@
         }
 
         function showPage(pageId) {
+            if (pageId === 'admin' && (!state.currentUser || state.currentUser.role !== 'admin')) {
+                openAuthModal('login');
+                showToast('Admin hozzáférés szükséges.');
+                return;
+            }
+
             document.querySelectorAll('.page-view').forEach(el => el.classList.add('hidden'));
             const target = document.getElementById(`page-${pageId}`);
             if (target) target.classList.remove('hidden');
             window.scrollTo({ top: 0, behavior: 'smooth' });
 
             if (pageId === 'webshop') renderShopProducts();
-            if (pageId === 'admin') {
-                if (!state.currentUser || state.currentUser.role !== 'admin') {
-                    openAuthModal('login');
-                    showToast('Admin hozzáférés szükséges.');
-                    return;
-                }
-                renderAdminTab('overview');
-            }
+            if (pageId === 'admin') renderAdminTab('overview');
             if (pageId === 'profile') renderUserProfile();
             if (pageId === 'calculator') updateCalculator();
         }
@@ -1322,6 +1330,11 @@
 
         async function checkoutCart() {
             if (state.cart.length === 0) return;
+            if (!state.currentUser) {
+                openAuthModal('login');
+                showToast('Rendelés leadásához bejelentkezés szükséges.');
+                return;
+            }
             try {
                 await apiFetch(API.orders, {
                     method: 'POST',
@@ -1400,10 +1413,12 @@
         }
 
         async function loginDemoAdmin() {
+            const password = prompt('Demo admin jelszó:');
+            if (!password) return;
             try {
                 await apiFetch(`${API.auth}?action=login`, {
                     method: 'POST',
-                    body: JSON.stringify({ email: 'admin@tamasbau.hu', password: 'Admin123!' })
+                    body: JSON.stringify({ email: 'admin@tamasbau.hu', password })
                 });
                 await refreshData();
                 closeAuthModal();
@@ -1419,10 +1434,12 @@
                 await apiFetch(`${API.auth}?action=logout`, { method: 'POST', body: JSON.stringify({}) });
             } catch (_) {}
             state.currentUser = null;
+            state.csrfToken = null;
             state.orders = [];
             state.estimates = [];
             state.users = [];
             state.quotes = [];
+            localStorage.removeItem('tb_csrf');
             updateAuthUI();
             showPage('home');
             showToast('Kijelentkezve.');
@@ -1507,7 +1524,8 @@
 
         function toggleAdminView() {
             if (!state.currentUser || state.currentUser.role !== 'admin') {
-                loginDemoAdmin();
+                openAuthModal('login');
+                showToast('Admin nézethez jelentkezzen be admin fiókkal.');
                 return;
             }
             showPage('admin');
@@ -1527,7 +1545,10 @@
 
         async function renderAdminTab(tab) {
             if (tab === 'overview') {
-                await Promise.all([loadOrders(), loadQuotes(), loadUsers(), loadProducts()]);
+                if (!state.orders.length) await loadOrders();
+                if (!state.quotes.length) await loadQuotes();
+                if (!state.users.length) await loadUsers();
+                if (!state.products.length) await loadProducts();
                 const totalRev = state.orders.reduce((sum, o) => sum + Number(o.total || 0), 0);
                 document.getElementById('kpi-revenue').innerText = totalRev.toLocaleString('hu-HU') + ' Ft';
                 document.getElementById('kpi-orders-count').innerText = state.orders.length + ' db';
@@ -1535,7 +1556,8 @@
                 document.getElementById('kpi-users-count').innerText = state.users.filter(u => Number(u.is_active) === 1).length + ' fő';
                 renderAdminChart();
             } else if (tab === 'products') {
-                await Promise.all([loadProducts(), loadCategories()]);
+                if (!state.products.length) await loadProducts();
+                if (!state.categories.length) await loadCategories();
                 const table = document.getElementById('admin-products-table');
                 table.innerHTML = state.products.map(p => `
                     <tr class="hover:bg-slate-700/50">
@@ -1550,10 +1572,11 @@
                     </tr>
                 `).join('');
             } else if (tab === 'categories') {
-                await loadCategories();
+                if (!state.categories.length) await loadCategories();
+                resetCategoryForm();
                 renderCategoryRows();
             } else if (tab === 'orders') {
-                await loadOrders();
+                if (!state.orders.length) await loadOrders();
                 const statuses = ['Feldolgozás alatt', 'Teljesítve', 'Lemondva'];
                 const table = document.getElementById('admin-orders-table');
                 table.innerHTML = state.orders.map(o => `
@@ -1569,7 +1592,7 @@
                     </tr>
                 `).join('');
             } else if (tab === 'quotes') {
-                await loadQuotes();
+                if (!state.quotes.length) await loadQuotes();
                 const statuses = ['new', 'contacted', 'closed'];
                 const table = document.getElementById('admin-quotes-table');
                 table.innerHTML = state.quotes.map(q => `
@@ -1588,7 +1611,7 @@
                     </tr>
                 `).join('');
             } else if (tab === 'users') {
-                await loadUsers();
+                if (!state.users.length) await loadUsers();
                 const table = document.getElementById('admin-users-table');
                 table.innerHTML = state.users.map(u => `
                     <tr class="hover:bg-slate-700/50">
@@ -1600,7 +1623,7 @@
                                 <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
                             </select>
                         </td>
-                        <td class="p-4 text-xs text-slate-400">${String(u.created_at).slice(0, 10)}</td>
+                        <td class="p-4 text-xs text-slate-400">${esc(String(u.created_at).slice(0, 10))}</td>
                         <td class="p-4"><span class="text-xs ${Number(u.is_active) === 1 ? 'text-emerald-400' : 'text-rose-400'}">${Number(u.is_active) === 1 ? 'Aktív' : 'Tiltott'}</span></td>
                         <td class="p-4 text-right space-x-2">
                             <button onclick="toggleUserStatus(${u.id}, ${Number(u.is_active) === 1 ? 0 : 1})" class="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-white">${Number(u.is_active) === 1 ? 'Tiltás' : 'Engedélyezés'}</button>
@@ -1631,6 +1654,13 @@
             table.innerHTML = rows.join('');
         }
 
+        function resetCategoryForm() {
+            document.getElementById('cat-id').value = '';
+            document.getElementById('cat-name').value = '';
+            document.getElementById('cat-parent').value = '';
+            document.getElementById('cat-submit-btn').innerText = 'Kategória Mentése';
+        }
+
         async function handleCategoryFormSubmit(e) {
             e.preventDefault();
             const id = document.getElementById('cat-id').value;
@@ -1642,9 +1672,7 @@
                     method: 'POST',
                     body: JSON.stringify({ action: id ? 'update' : 'create', id: id || undefined, name, parent_id })
                 });
-                document.getElementById('cat-id').value = '';
-                document.getElementById('cat-name').value = '';
-                document.getElementById('cat-parent').value = '';
+                resetCategoryForm();
                 await loadCategories();
                 renderCategoryRows();
                 showToast('Kategória mentve.');
@@ -1659,6 +1687,7 @@
             document.getElementById('cat-id').value = cat.id;
             document.getElementById('cat-name').value = cat.name;
             document.getElementById('cat-parent').value = cat.parent_id || '';
+            document.getElementById('cat-submit-btn').innerText = 'Kategória Frissítése';
         }
 
         async function deleteCategory(id) {
@@ -1697,12 +1726,11 @@
         }
 
         function openProductModal(prodId = null) {
-            document.getElementById('product-modal').classList.remove('hidden');
-            syncProductMainCategories();
-
             if (prodId) {
                 const p = state.products.find(x => x.id === prodId);
                 if (!p) return;
+                document.getElementById('product-modal').classList.remove('hidden');
+                syncProductMainCategories();
                 document.getElementById('product-modal-title').innerText = 'Termék Szerkesztése';
                 document.getElementById('prod-id').value = p.id;
                 document.getElementById('prod-name').value = p.name;
@@ -1716,6 +1744,8 @@
                 document.getElementById('prod-icon').value = p.icon || 'fa-box';
                 document.getElementById('prod-desc').value = p.desc || '';
             } else {
+                document.getElementById('product-modal').classList.remove('hidden');
+                syncProductMainCategories();
                 document.getElementById('product-modal-title').innerText = 'Új Termék Hozzáadása';
                 document.getElementById('prod-id').value = '';
                 document.getElementById('prod-name').value = '';
@@ -1874,7 +1904,6 @@
             updateCalculator();
             renderShopProducts();
         };
-    </script>
     </script>
 </body>
 </html>

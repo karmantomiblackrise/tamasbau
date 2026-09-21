@@ -24,16 +24,36 @@ if ($method === 'GET') {
         send_json(['ok' => true, 'orders' => []]);
     }
 
-    $orders = [];
-    foreach ($stmt->fetchAll() as $row) {
-        $itemsStmt = db()->prepare('SELECT oi.id, oi.product_id, oi.qty, oi.unit_price, p.name
+    $orderRows = $stmt->fetchAll();
+    $orderIds = array_map(static fn(array $row): int => (int) $row['id'], $orderRows);
+    $itemsByOrder = [];
+    if ($orderIds) {
+        $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
+        $itemsStmt = db()->prepare('SELECT oi.id, oi.order_id, oi.product_id, oi.qty, oi.unit_price, p.name
                                     FROM order_items oi
-                                    INNER JOIN products p ON p.id = oi.product_id
-                                    WHERE oi.order_id = ?');
-        $itemsStmt->execute([(int) $row['id']]);
+                                    LEFT JOIN products p ON p.id = oi.product_id
+                                    WHERE oi.order_id IN (' . $placeholders . ')');
+        $itemsStmt->execute($orderIds);
+        foreach ($itemsStmt->fetchAll() as $item) {
+            $orderId = (int) $item['order_id'];
+            if (!isset($itemsByOrder[$orderId])) {
+                $itemsByOrder[$orderId] = [];
+            }
+            $itemsByOrder[$orderId][] = [
+                'id' => (int) $item['id'],
+                'product_id' => $item['product_id'] !== null ? (int) $item['product_id'] : null,
+                'name' => $item['name'] ?: 'Törölt termék',
+                'qty' => (int) $item['qty'],
+                'unit_price' => (int) $item['unit_price'],
+            ];
+        }
+    }
 
+    $orders = [];
+    foreach ($orderRows as $row) {
+        $orderId = (int) $row['id'];
         $orders[] = [
-            'id' => (int) $row['id'],
+            'id' => $orderId,
             'user_id' => $row['user_id'] !== null ? (int) $row['user_id'] : null,
             'customer' => $row['user_name'] ?: 'Vendég vásárló',
             'email' => $row['user_email'],
@@ -41,13 +61,7 @@ if ($method === 'GET') {
             'status' => $row['status'],
             'date' => substr((string) $row['created_at'], 0, 10),
             'created_at' => $row['created_at'],
-            'items' => array_map(static fn(array $item): array => [
-                'id' => (int) $item['id'],
-                'product_id' => (int) $item['product_id'],
-                'name' => $item['name'],
-                'qty' => (int) $item['qty'],
-                'unit_price' => (int) $item['unit_price'],
-            ], $itemsStmt->fetchAll()),
+            'items' => $itemsByOrder[$orderId] ?? [],
         ];
     }
 
@@ -58,6 +72,7 @@ if ($method === 'POST') {
     $action = clean_string($payload['action'] ?? 'create');
 
     if ($action === 'create') {
+        $user = require_login();
         $items = is_array($payload['items'] ?? null) ? $payload['items'] : [];
         if (!$items) {
             send_json(['ok' => false, 'error' => 'A kosár üres.'], 422);
@@ -98,10 +113,13 @@ if ($method === 'POST') {
             $orderId = (int) $pdo->lastInsertId();
 
             $itemStmt = $pdo->prepare('INSERT INTO order_items (order_id, product_id, qty, unit_price) VALUES (?, ?, ?, ?)');
-            $stockStmt = $pdo->prepare('UPDATE products SET stock = stock - ? WHERE id = ?');
+            $stockStmt = $pdo->prepare('UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?');
             foreach ($validatedItems as $row) {
+                $stockStmt->execute([$row['qty'], $row['product_id'], $row['qty']]);
+                if ($stockStmt->rowCount() !== 1) {
+                    throw new RuntimeException('Készlethiány miatt a rendelés nem teljesíthető.');
+                }
                 $itemStmt->execute([$orderId, $row['product_id'], $row['qty'], $row['unit_price']]);
-                $stockStmt->execute([$row['qty'], $row['product_id']]);
             }
 
             $pdo->commit();
@@ -110,20 +128,74 @@ if ($method === 'POST') {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
-            send_json(['ok' => false, 'error' => $e->getMessage()], 422);
+            if ($e instanceof RuntimeException) {
+                send_json(['ok' => false, 'error' => $e->getMessage()], 422);
+            }
+            send_json(['ok' => false, 'error' => 'A rendelés feldolgozása sikertelen.'], 500);
         }
     }
 
-    require_admin();
     if ($action === 'update_status') {
+        require_admin();
         $id = (int) ($payload['id'] ?? 0);
         $status = clean_string($payload['status'] ?? '', 60);
-        if ($id <= 0 || $status === '') {
+        $allowedStatuses = ['Feldolgozás alatt', 'Teljesítve', 'Lemondva'];
+        if ($id <= 0 || !in_array($status, $allowedStatuses, true)) {
             send_json(['ok' => false, 'error' => 'Hiányzó rendelés adatok.'], 422);
         }
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+            $currentStmt = $pdo->prepare('SELECT status FROM orders WHERE id = ? LIMIT 1');
+            $currentStmt->execute([$id]);
+            $current = $currentStmt->fetch();
+            if (!$current) {
+                throw new RuntimeException('Rendelés nem található.');
+            }
+            if ($current['status'] === 'Teljesítve' && $status === 'Lemondva') {
+                throw new RuntimeException('Teljesített rendelés nem mondható le.');
+            }
 
-        $stmt = db()->prepare('UPDATE orders SET status = ? WHERE id = ?');
-        $stmt->execute([$status, $id]);
+            if ($status === 'Lemondva' && $current['status'] !== 'Lemondva') {
+                $itemsStmt = $pdo->prepare('SELECT product_id, qty FROM order_items WHERE order_id = ? AND product_id IS NOT NULL');
+                $itemsStmt->execute([$id]);
+                $restockStmt = $pdo->prepare('UPDATE products SET stock = stock + ? WHERE id = ?');
+                foreach ($itemsStmt->fetchAll() as $item) {
+                    $restockStmt->execute([(int) $item['qty'], (int) $item['product_id']]);
+                }
+            }
+            if ($status !== 'Lemondva' && $current['status'] === 'Lemondva') {
+                $itemsStmt = $pdo->prepare('SELECT product_id, qty FROM order_items WHERE order_id = ? AND product_id IS NOT NULL');
+                $itemsStmt->execute([$id]);
+                $reserveStmt = $pdo->prepare('UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?');
+                foreach ($itemsStmt->fetchAll() as $item) {
+                    $qty = (int) $item['qty'];
+                    $productId = (int) $item['product_id'];
+                    $reserveStmt->execute([$qty, $productId, $qty]);
+                    if ($reserveStmt->rowCount() !== 1) {
+                        throw new RuntimeException('Nincs elegendő készlet a rendelés újraaktiválásához.');
+                    }
+                }
+            }
+
+            $updateStmt = $pdo->prepare('UPDATE orders SET status = ? WHERE id = ?');
+            $updateStmt->execute([$status, $id]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            if ($e instanceof RuntimeException && $e->getMessage() === 'Rendelés nem található.') {
+                send_json(['ok' => false, 'error' => $e->getMessage()], 404);
+            }
+            if ($e instanceof RuntimeException && $e->getMessage() === 'Nincs elegendő készlet a rendelés újraaktiválásához.') {
+                send_json(['ok' => false, 'error' => $e->getMessage()], 422);
+            }
+            if ($e instanceof RuntimeException && $e->getMessage() === 'Teljesített rendelés nem mondható le.') {
+                send_json(['ok' => false, 'error' => $e->getMessage()], 422);
+            }
+            send_json(['ok' => false, 'error' => 'A rendelés állapota nem frissíthető.'], 422);
+        }
         send_json(['ok' => true]);
     }
 }

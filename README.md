@@ -8,7 +8,7 @@ Ez a projekt a korábbi statikus `index.html` verzió továbbfejlesztett változ
 2. Importáld a sémát és seed adatokat:
 
 ```bash
-mysql -u root -p < /home/runner/work/tamasbau/tamasbau/database/schema.sql
+mysql -u root -p < database/schema.sql
 ```
 
 ## 2) API konfiguráció (`api/config.php`)
@@ -34,9 +34,23 @@ export TB_DB_PASS=secret
 ## 3) Demo admin belépés
 
 - E-mail: `admin@tamasbau.hu`
-- Jelszó: `Admin123!`
 
-A login modalban található **Gyors belépés Demo Adminisztrátorként** gomb ezt a felhasználót hitelesíti a backend felé.
+A login modalban található **Gyors belépés Demo Adminisztrátorként** gomb az admin e-maillel indít belépést, majd jelszó bekérése után hitelesít a backend felé.
+
+Az első bejelentkezés előtt állíts be saját admin jelszót (példa SQL):
+
+```sql
+UPDATE users
+SET password_hash = '$2y$10$A_SAJAT_HASHED_JELSZAVAD',
+    is_active = 1
+WHERE email = 'admin@tamasbau.hu';
+```
+
+A hash előállításához használható parancs:
+
+```bash
+php -r "echo password_hash('SajatErősJelszo123!', PASSWORD_DEFAULT), PHP_EOL;"
+```
 
 ## 4) Futtatás helyben
 
