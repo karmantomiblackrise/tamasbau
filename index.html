@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="hu" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tamás Bau Kft. - Villanyszerelés & Riasztórendszerek</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            gold: '#f59e0b',
+                            amber: '#d97706',
+                            dark: '#0f172a',
+                            slate: '#1e293b',
+                            blue: '#0284c7',
+                            light: '#f8fafc'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d97706;
+        }
+        .glow-gold {
+            box-shadow: 0 0 25px rgba(245, 158, 11, 0.25);
+        }
+        .glow-blue {
+            box-shadow: 0 0 25px rgba(2, 132, 199, 0.25);
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans antialiased min-h-screen flex flex-col justify-between selection:bg-amber-500 selection:text-slate-900">
+
+    <div class="bg-slate-950 text-slate-400 text-xs py-2 px-4 border-b border-slate-800">
+        <div class="max-w-7xl mx-auto flex justify-between items-center flex-wrap gap-2">
+            <div class="flex items-center space-x-4">
+                <span><i class="fa-solid font-bold text-amber-500 fa-phone mr-1"></i> +36 (30) 123-4567</span>
+                <span class="hidden sm:inline"><i class="fa-solid text-amber-500 fa-envelope mr-1"></i> info@tamasbau.hu</span>
+                <span class="hidden md:inline"><i class="fa-solid text-amber-500 fa-location-dot mr-1"></i> Budapest & Pest Megye</span>
+            </div>
+            <div class="flex items-center space-x-3">
+                <span id="user-status-text" class="text-slate-300">Vendég munkamenet</span>
+                <button onclick="toggleAdminView()" id="admin-toggle-btn" class="bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-slate-950 px-2.5 py-1 rounded text-xs font-semibold border border-amber-500/30 transition-all flex items-center">
+                    <i class="fa-solid fa-user-shield mr-1.5"></i> Admin Nézet
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 transition-all">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <a href="#" onclick="showPage('home')" class="flex items-center space-x-3 group">
+                    <div class="w-12 h-12 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center text-slate-950 font-black text-2xl shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform">
+                        TB
+                    </div>
+                    <div>
+                        <span class="text-xl font-extrabold tracking-tight text-white block leading-none">TAMÁS BAU <span class="text-amber-500">KFT.</span></span>
+                        <span class="text-xs text-slate-400 font-medium tracking-wider uppercase">Villany & Riasztórendszerek</span>
+                    </div>
+                </a>
+
+                <nav id="public-nav" class="hidden md:flex items-center space-x-8 text-sm font-medium">
+                    <a href="#" onclick="showPage('home')" class="hover:text-amber-400 transition-colors">Kezdőlap</a>
+                    <a href="#services" onclick="showPage('home')" class="hover:text-amber-400 transition-colors">Szolgáltatások</a>
+                    <a href="#" onclick="showPage('calculator')" class="hover:text-amber-400 transition-colors flex items-center text-amber-400 font-semibold"><i class="fa-solid fa-calculator mr-1.5"></i>Árkalkulátor</a>
+                    <a href="#" onclick="showPage('webshop')" class="hover:text-amber-400 transition-colors">Webshop</a>
+                    <a href="#projects" onclick="showPage('home')" class="hover:text-amber-400 transition-colors">Referenciák</a>
+                    <a href="#contact" onclick="showPage('home')" class="hover:text-amber-400 transition-colors">Kapcsolat</a>
+                </nav>
+
+                <div class="flex items-center space-x-4">
+                    <button onclick="toggleCartModal()" class="relative p-2.5 text-slate-300 hover:text-amber-400 hover:bg-slate-800 rounded-xl transition-all">
+                        <i class="fa-solid fa-shopping-cart text-lg"></i>
+                        <span id="cart-badge" class="absolute -top-1 -right-1 bg-amber-500 text-slate-950 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center hidden">0</span>
+                    </button>
+
+                    <div id="auth-buttons-container">
+                        <button onclick="openAuthModal('login')" class="hidden sm:inline-flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl border border-slate-700 text-sm font-medium transition-all">
+                            <i class="fa-solid fa-right-to-bracket text-amber-400"></i>
+                            <span>Bejelentkezés</span>
+                        </button>
+                    </div>
+
+                    <button onclick="toggleMobileMenu()" class="md:hidden p-2 text-slate-300 hover:text-white">
+                        <i class="fa-solid fa-bars text-xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="mobile-menu" class="hidden md:hidden bg-slate-950 border-b border-slate-800 px-4 pt-2 pb-4 space-y-2">
+            <a href="#" onclick="showPage('home'); toggleMobileMenu();" class="block py-2 text-slate-200 font-medium">Kezdőlap</a>
+            <a href="#" onclick="showPage('calculator'); toggleMobileMenu();" class="block py-2 text-amber-400 font-semibold"><i class="fa-solid fa-calculator mr-2"></i>Árkalkulátor</a>
+            <a href="#" onclick="showPage('webshop'); toggleMobileMenu();" class="block py-2 text-slate-200 font-medium">Webshop</a>
+            <a href="#services" onclick="showPage('home'); toggleMobileMenu();" class="block py-2 text-slate-200 font-medium">Szolgáltatások</a>
+            <a href="#projects" onclick="showPage('home'); toggleMobileMenu();" class="block py-2 text-slate-200 font-medium">Referenciák</a>
+            <a href="#contact" onclick="showPage('home'); toggleMobileMenu();" class="block py-2 text-slate-200 font-medium">Kapcsolat</a>
+            <div id="mobile-auth-container" class="pt-2 border-t border-slate-800">
+                <button onclick="openAuthModal('login'); toggleMobileMenu();" class="w-full text-center py-2.5 bg-amber-500 text-slate-950 font-bold rounded-lg">Bejelentkezés / Regisztráció</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow">
+        <div id="page-home" class="page-view space-y-24">
+            <section class="relative overflow-hidden pt-12 pb-20 lg:pt-20 lg:pb-32 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950">
+                <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#f59e0b_1px,transparent_1px)] [background-size:16px_16px]"></div>
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+                    <div class="grid lg:grid-cols-12 gap-12 items-center">
+                        <div class="lg:col-span-7 space-y-8 text-center lg:text-left">
+                            <div class="inline-flex items-center space-x-2 bg-amber-500/10 border border-amber-500/30 px-3.5 py-1.5 rounded-full text-amber-400 text-xs font-semibold uppercase tracking-wider">
+                                <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                                <span>Professzionális Kivitelezés & Védelem</span>
+                            </div>
+                            <h1 class="text-4xl sm:text-6xl font-black text-white tracking-tight leading-tight">
+                                Biztonságos Villamosság, <br>
+                                <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-200">Korszerű Riasztórendszerek.</span>
+                            </h1>
+                            <p class="text-slate-300 text-lg max-w-2xl mx-auto lg:mx-0 font-normal leading-relaxed">
+                                A Tamás Bau Kft. garanciális villanyszerelési munkákat, okosotthon kiépítést, valamint Ajax és Menvier riasztó- és kamerarendszerek telepítését vállalja lakossági és ipari ügyfeleknek.
+                            </p>
+                            <div class="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2">
+                                <button onclick="showPage('calculator')" class="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold rounded-xl shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 transition-all flex items-center justify-center space-x-2 text-base">
+                                    <i class="fa-solid fa-calculator"></i>
+                                    <span>Azonnali Árkalkuláció</span>
+                                </button>
+                                <a href="#contact" class="w-full sm:w-auto px-8 py-4 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl border border-slate-700 transition-all text-center">
+                                    Ingyenes Felmérés Kérése
+                                </a>
+                            </div>
+
+                            <div class="pt-8 border-t border-slate-800/80 grid grid-cols-3 gap-4 text-center lg:text-left">
+                                <div>
+                                    <div class="text-2xl font-bold text-white">12+</div>
+                                    <div class="text-xs text-slate-400">Év Tapasztalat</div>
+                                </div>
+                                <div>
+                                    <div class="text-2xl font-bold text-white">100%</div>
+                                    <div class="text-xs text-slate-400">Garancia Vállalás</div>
+                                </div>
+                                <div>
+                                    <div class="text-2xl font-bold text-white">850+</div>
+                                    <div class="text-xs text-slate-400">Elégedett Ügyfél</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="lg:col-span-5 relative">
+                            <div class="relative bg-slate-800/60 backdrop-blur-xl border border-slate-700/60 rounded-3xl p-6 shadow-2xl glow-gold">
+                                <div class="flex items-center justify-between border-b border-slate-700/80 pb-4 mb-6">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                                        <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                        <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                                    </div>
+                                    <span class="text-xs text-slate-400 font-mono">System_Status: ACTIVE</span>
+                                </div>
+
+                                <div class="space-y-4">
+                                    <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="p-2.5 bg-amber-500/10 text-amber-400 rounded-lg">
+                                                <i class="fa-solid fa-bolt text-xl"></i>
+                                            </div>
+                                            <div>
+                                                <div class="text-sm font-semibold text-white">Teljes Hálózati Kiépítés</div>
+                                                <div class="text-xs text-slate-400">Érintésvédelem & Mérőhelyek</div>
+                                            </div>
+                                        </div>
+                                        <span class="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">Szabványos</span>
+                                    </div>
+
+                                    <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="p-2.5 bg-sky-500/10 text-sky-400 rounded-lg">
+                                                <i class="fa-solid fa-shield-halved text-xl"></i>
+                                            </div>
+                                            <div>
+                                                <div class="text-sm font-semibold text-white">IP Kamera & Riasztó</div>
+                                                <div class="text-xs text-slate-400">24/7 Távoli elérés mobile app-al</div>
+                                            </div>
+                                        </div>
+                                        <span class="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">Élesítve</span>
+                                    </div>
+
+                                    <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 flex items-center justify-between">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-lg">
+                                                <i class="fa-solid fa-house-signal text-xl"></i>
+                                            </div>
+                                            <div>
+                                                <div class="text-sm font-semibold text-white">Smart Home Vezérlés</div>
+                                                <div class="text-xs text-slate-400">Világítás és fűtés automatizálás</div>
+                                            </div>
+                                        </div>
+                                        <span class="text-xs text-amber-400 bg-amber-500/10 px-2 py-1 rounded">Online</span>
+                                    </div>
+                                </div>
+
+                                <div class="mt-6 pt-4 border-t border-slate-700/80 flex items-center justify-between text-xs text-slate-400">
+                                    <span>Hívjon most sürgősségi hibaelhárításhoz:</span>
+                                    <span class="text-amber-400 font-bold">+36 30 123 4567</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="services" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center max-w-3xl mx-auto space-y-3 mb-16">
+                    <h2 class="text-xs font-bold text-amber-400 tracking-widest uppercase">Szolgáltatásaink</h2>
+                    <p class="text-3xl sm:text-4xl font-extrabold text-white">Miben tudunk segíteni Önnek?</p>
+                    <p class="text-slate-400">Teljes körű gyenge- és erősáramú kivitelezés egy kézből, a tervezéstől a megvalósításig.</p>
+                </div>
+
+                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+                    <div class="bg-slate-800/50 border border-slate-700/80 hover:border-amber-500/50 p-6 rounded-2xl transition-all hover:-translate-y-1 group">
+                        <div class="w-14 h-14 bg-amber-500/10 text-amber-400 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:bg-amber-500 group-hover:text-slate-950 transition-colors">
+                            <i class="fa-solid fa-plug-circle-bolt"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-2">Villanyszerelés</h3>
+                        <p class="text-slate-400 text-sm mb-4">Új építésű ingatlanok és panellakások teljes újravezetékezése, biztosítéktáblák cseréje, regisztrált villanyszerelés.</p>
+                        <ul class="text-xs text-slate-300 space-y-1.5">
+                            <li><i class="fa-solid fa-check text-amber-500 mr-2"></i>Mérőhely kiépítés</li>
+                            <li><i class="fa-solid fa-check text-amber-500 mr-2"></i>Érintésvédelmi felülvizsgálat</li>
+                            <li><i class="fa-solid fa-check text-amber-500 mr-2"></i>LED világítástechnika</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-slate-800/50 border border-slate-700/80 hover:border-amber-500/50 p-6 rounded-2xl transition-all hover:-translate-y-1 group">
+                        <div class="w-14 h-14 bg-amber-500/10 text-amber-400 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:bg-amber-500 group-hover:text-slate-950 transition-colors">
+                            <i class="fa-solid fa-shield-cat"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-2">Riasztórendszerek</h3>
+                        <p class="text-slate-400 text-sm mb-4">MABISZ minősített vezetékes és vezeték nélküli okos riasztórendszerek telepítése távfelügyeleti bekötéssel.</p>
+                        <ul class="text-xs text-slate-300 space-y-1.5">
+                            <li><i class="fa-solid fa-check text-amber-500 mr-2"></i>Mozgás- és nyitásérzékelők</li>
+                            <li><i class="fa-solid fa-check text-amber-500 mr-2"></i>Füst- és vízszivárgás jelzők</li>
+                            <li><i class="fa-solid fa-check text-amber-500 mr-2"></i>Mobilalkalmazásos vezérlés</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-slate-800/50 border border-slate-700/80 hover:border-amber-500/50 p-6 rounded-2xl transition-all hover:-translate-y-1 group">
+                        <div class="w-14 h-14 bg-amber-500/10 text-amber-400 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:bg-amber-500 group-hover:text-slate-950 transition-colors">
+                            <i class="fa-solid fa-video"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-2">Kamerarendszerek</h3>
+                        <p class="text-slate-400 text-sm mb-4">Nagy felbontású 4K IP és analóg HD kamerarendszerek kiépítése éjjellátó funkcióval és mesterséges intelligenciával.</p>
+                        <ul class="text-xs text-slate-300 space-y-1.5">
+                            <li><i class="fa-solid fa-check text-amber-500 mr-2"></i>Ember- és járműfelismerés</li>
+                            <li><i class="fa-solid fa-check text-amber-500 mr-2"></i>NVR rögzítők beállítása</li>
+                            <li><i class="fa-solid fa-check text-amber-500 mr-2"></i>Távoli élő kép megtekintés</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-slate-800/50 border border-slate-700/80 hover:border-amber-500/50 p-6 rounded-2xl transition-all hover:-translate-y-1 group">
+                        <div class="w-14 h-14 bg-amber-500/10 text-amber-400 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:bg-amber-500 group-hover:text-slate-950 transition-colors">
+                            <i class="fa-solid fa-key"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-2">Beléptető & Kaputelefon</h3>
+                        <p class="text-slate-400 text-sm mb-4">Társasházi és irodai beléptető rendszerek, számkódos, kártyás kapunyitók és okos videó kaputelefonok.</p>
+                        <ul class="text-xs text-slate-300 space-y-1.5">
+                            <li><i class="fa-solid fa-check text-amber-500 mr-2"></i>RFID kártyás olvasók</li>
+                            <li><i class="fa-solid fa-check text-amber-500 mr-2"></i>Wi-Fi videó kaputelefonok</li>
+                            <li><i class="fa-solid fa-check text-amber-500 mr-2"></i>Mágneszárak telepítése</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="bg-gradient-to-r from-amber-500 to-amber-600 rounded-3xl p-8 lg:p-12 text-slate-950 flex flex-col md:flex-row items-center justify-between gap-8 shadow-xl">
+                    <div class="space-y-3 text-center md:text-left">
+                        <span class="bg-slate-950 text-amber-400 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">Kiemelt Webshop Ajánlatok</span>
+                        <h3 class="text-3xl font-black">Vásároljon Szerelési Anyagokat és Riasztókat Közvetlenül!</h3>
+                        <p class="text-slate-900 font-medium max-w-xl">Minőségi kismegszakítók, Ajax riasztó szettek, IP kamerák és villamossági kiegészítők raktárról, gyors kiszállítással.</p>
+                    </div>
+                    <button onclick="showPage('webshop')" class="whitespace-nowrap px-8 py-4 bg-slate-950 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-lg">
+                        Böngészés a Webshopban <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+            </section>
+
+            <section id="projects" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center max-w-3xl mx-auto space-y-3 mb-12">
+                    <h2 class="text-xs font-bold text-amber-400 tracking-widest uppercase">Referenciák</h2>
+                    <p class="text-3xl font-extrabold text-white">Legutóbbi Munkáink</p>
+                </div>
+
+                <div class="grid md:grid-cols-3 gap-8">
+                    <div class="bg-slate-800 rounded-2xl overflow-hidden border border-slate-700">
+                        <div class="h-48 bg-slate-700 relative overflow-hidden flex items-center justify-center text-slate-500">
+                            <i class="fa-solid fa-building text-5xl"></i>
+                            <span class="absolute top-3 right-3 bg-amber-500 text-slate-950 text-xs font-bold px-2.5 py-1 rounded">Családi Ház</span>
+                        </div>
+                        <div class="p-6">
+                            <h4 class="font-bold text-lg text-white mb-2">3 Szintes Családi Ház Teljes Kivitelezése</h4>
+                            <p class="text-xs text-slate-400 mb-4">Érd - Teljes erősáramú vezetékezés, 16 zónás Ajax riasztórendszer és 6 db 4K IP kamera telepítése.</p>
+                            <span class="text-xs text-amber-400 font-semibold">Befejezve: 2026. Január</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800 rounded-2xl overflow-hidden border border-slate-700">
+                        <div class="h-48 bg-slate-700 relative overflow-hidden flex items-center justify-center text-slate-500">
+                            <i class="fa-solid fa-warehouse text-5xl"></i>
+                            <span class="absolute top-3 right-3 bg-amber-500 text-slate-950 text-xs font-bold px-2.5 py-1 rounded">Ipari Csarnok</span>
+                        </div>
+                        <div class="p-6">
+                            <h4 class="font-bold text-lg text-white mb-2">Telephely Riasztó & Beléptető Rendszer</h4>
+                            <p class="text-xs text-slate-400 mb-4">Budaörs - Ipari szintű infrasorompós kerítésvédelem, kapuautomatizálás és kártyás beléptető kapuk.</p>
+                            <span class="text-xs text-amber-400 font-semibold">Befejezve: 2025. November</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800 rounded-2xl overflow-hidden border border-slate-700">
+                        <div class="h-48 bg-slate-700 relative overflow-hidden flex items-center justify-center text-slate-500">
+                            <i class="fa-solid fa-house-chimney text-5xl"></i>
+                            <span class="absolute top-3 right-3 bg-amber-500 text-slate-950 text-xs font-bold px-2.5 py-1 rounded">Társasház</span>
+                        </div>
+                        <div class="p-6">
+                            <h4 class="font-bold text-lg text-white mb-2">Társasházi Fővezeték Csere & Kaputelefon</h4>
+                            <p class="text-xs text-slate-400 mb-4">Budapest XI. kerület - 12 lakásos társasház főfelszálló vezeték cseréje és videó kaputelefon rendszer.</p>
+                            <span class="text-xs text-amber-400 font-semibold">Befejezve: 2025. Augusztus</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="contact" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+                <div class="bg-slate-800/80 border border-slate-700 rounded-3xl p-8 lg:p-12 grid lg:grid-cols-12 gap-12">
+                    <div class="lg:col-span-5 space-y-6">
+                        <h2 class="text-3xl font-extrabold text-white">Lépjen Kapcsolatba Velünk!</h2>
+                        <p class="text-slate-300 text-sm">Kérjen ingyenes helyszíni felmérést vagy árajánlatot villanyszerelési vagy biztonságtechnikai munkájára.</p>
+
+                        <div class="space-y-4 pt-4">
+                            <div class="flex items-start space-x-4">
+                                <div class="p-3 bg-amber-500/10 text-amber-400 rounded-xl"><i class="fa-solid fa-phone text-xl"></i></div>
+                                <div>
+                                    <div class="text-xs text-slate-400">Telefon / Sürgősségi hívás</div>
+                                    <div class="text-white font-bold">+36 (30) 123-4567</div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start space-x-4">
+                                <div class="p-3 bg-amber-500/10 text-amber-400 rounded-xl"><i class="fa-solid fa-envelope text-xl"></i></div>
+                                <div>
+                                    <div class="text-xs text-slate-400">E-mail címünk</div>
+                                    <div class="text-white font-bold">info@tamasbau.hu</div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start space-x-4">
+                                <div class="p-3 bg-amber-500/10 text-amber-400 rounded-xl"><i class="fa-solid fa-location-dot text-xl"></i></div>
+                                <div>
+                                    <div class="text-xs text-slate-400">Munkavégzési terület</div>
+                                    <div class="text-white font-bold">Budapest és teljes Pest megye</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-7">
+                        <form onsubmit="handleContactSubmit(event)" class="space-y-4">
+                            <div class="grid sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-300 mb-1">Teljes Név *</label>
+                                    <input type="text" id="contact-name" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 text-sm" placeholder="Kovács István">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-300 mb-1">Telefonszám *</label>
+                                    <input type="tel" id="contact-phone" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 text-sm" placeholder="+36 30 ...">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">E-mail Cím *</label>
+                                <input type="email" id="contact-email" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 text-sm" placeholder="kovacs@example.hu">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Munkatípus</label>
+                                <select id="contact-type" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 text-sm">
+                                    <option value="villany">Villanyszerelés / Újravezetékezés</option>
+                                    <option value="riaszto">Riasztórendszer kiépítés</option>
+                                    <option value="kamera">Kamerarendszer telepítés</option>
+                                    <option value="egyeb">Egyéb karbantartás / Hibaelhárítás</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Üzenet / Részletek *</label>
+                                <textarea id="contact-message" rows="4" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 text-sm" placeholder="Kérjük, írja le röviden az elvégzendő feladatot..."></textarea>
+                            </div>
+
+                            <button type="submit" class="w-full py-4 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors shadow-lg">
+                                Ajánlatkérés Elküldése
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div id="page-calculator" class="page-view hidden max-w-5xl mx-auto px-4 py-12">
+            <div class="text-center max-w-2xl mx-auto mb-10">
+                <span class="text-xs font-bold text-amber-400 uppercase tracking-widest">Azonnali Bécslés</span>
+                <h1 class="text-3xl sm:text-4xl font-extrabold text-white mt-1">Villany- és Riasztó Árkalkulátor</h1>
+                <p class="text-slate-400 text-sm mt-2">Állítsa be az paramétereket a tájékoztató jellegű költségbecsléshez!</p>
+            </div>
+
+            <div class="grid md:grid-cols-12 gap-8">
+                <div class="md:col-span-7 bg-slate-800/80 border border-slate-700 rounded-2xl p-6 space-y-6">
+                    <h3 class="text-lg font-bold text-white border-b border-slate-700 pb-3 flex items-center">
+                        <i class="fa-solid fa-sliders text-amber-400 mr-2"></i> Ingatlan & Igények
+                    </h3>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-2">Ingatlan Alapterülete (m²)</label>
+                        <div class="flex items-center space-x-4">
+                            <input type="range" id="calc-area" min="20" max="300" value="70" class="w-full accent-amber-500" oninput="updateCalculator()">
+                            <span id="calc-area-val" class="font-bold text-amber-400 bg-slate-900 px-3 py-1 rounded border border-slate-700 min-w-[70px] text-center">70 m²</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-2">Villamossági Kiépítés Típusa</label>
+                        <select id="calc-wiring-type" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm" onchange="updateCalculator()">
+                            <option value="none">Nincs villanyszerelési munka</option>
+                            <option value="partial">Részleges felújítás / Bővítés (kb. 8.000 Ft/m²)</option>
+                            <option value="full" selected>Teljes újrahuzalozás + aljzatok (kb. 14.000 Ft/m²)</option>
+                            <option value="premium">Okosotthon előkészítés + Prémium (kb. 20.000 Ft/m²)</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-3 pt-2 border-t border-slate-700/60">
+                        <label class="block text-sm font-medium text-slate-300">Biztonsági Rendszer Kiegészítők</label>
+
+                        <div class="flex items-center justify-between bg-slate-900/60 p-3 rounded-xl">
+                            <span class="text-sm text-slate-300"><i class="fa-solid fa-shield text-amber-400 mr-2"></i>Riasztó Központ & Érzékelők</span>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="adjustCalcQty('alarm', -1)" class="w-7 h-7 bg-slate-800 text-white rounded font-bold">-</button>
+                                <span id="calc-alarm-qty" class="w-8 text-center text-sm font-bold">1</span>
+                                <button onclick="adjustCalcQty('alarm', 1)" class="w-7 h-7 bg-slate-800 text-white rounded font-bold">+</button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between bg-slate-900/60 p-3 rounded-xl">
+                            <span class="text-sm text-slate-300"><i class="fa-solid fa-video text-amber-400 mr-2"></i>4K IP Kamerák Száma</span>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="adjustCalcQty('camera', -1)" class="w-7 h-7 bg-slate-800 text-white rounded font-bold">-</button>
+                                <span id="calc-camera-qty" class="w-8 text-center text-sm font-bold">2</span>
+                                <button onclick="adjustCalcQty('camera', 1)" class="w-7 h-7 bg-slate-800 text-white rounded font-bold">+</button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between bg-slate-900/60 p-3 rounded-xl">
+                            <span class="text-sm text-slate-300"><i class="fa-solid fa-door-closed text-amber-400 mr-2"></i>Okos Videó Kaputelefon</span>
+                            <input type="checkbox" id="calc-intercom" class="w-5 h-5 accent-amber-500" onchange="updateCalculator()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="md:col-span-5 bg-gradient-to-br from-slate-800 to-slate-900 border border-amber-500/30 rounded-2xl p-6 flex flex-col justify-between shadow-xl">
+                    <div>
+                        <h3 class="text-lg font-bold text-white border-b border-slate-700 pb-3 mb-4">Összesített Becslés</h3>
+                        <div class="space-y-3 text-sm text-slate-300">
+                            <div class="flex justify-between">
+                                <span>Villanyszerelés:</span>
+                                <span id="summary-wiring-cost" class="font-semibold text-white">0 Ft</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Riasztó rendszer:</span>
+                                <span id="summary-alarm-cost" class="font-semibold text-white">0 Ft</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Kamerarendszer:</span>
+                                <span id="summary-camera-cost" class="font-semibold text-white">0 Ft</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Kaputelefon:</span>
+                                <span id="summary-intercom-cost" class="font-semibold text-white">0 Ft</span>
+                            </div>
+                            <div class="pt-3 border-t border-slate-700 flex justify-between text-xs text-slate-400">
+                                <span>Munkadíj & Anyagköltség becsült aránya:</span>
+                                <span>50% - 50%</span>
+                            </div>
+                        </div>
+
+                        <div class="mt-8 bg-slate-950 p-4 rounded-xl border border-amber-500/40 text-center">
+                            <span class="text-xs text-slate-400 uppercase tracking-wider block">Várható Becsült Végösszeg</span>
+                            <span id="summary-total-cost" class="text-3xl font-black text-amber-400 block mt-1">0 Ft</span>
+                            <span class="text-[10px] text-slate-500 block mt-1">*Az árak tájékoztató jellegűek, a pontos árhoz helyszíni felmérés szükséges.</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 space-y-3">
+                        <button onclick="saveEstimateToProfile()" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl border border-slate-600 transition-colors text-sm">
+                            <i class="fa-solid fa-bookmark text-amber-400 mr-2"></i>Kalkuláció Mentése
+                        </button>
+                        <button onclick="showPage('home'); setTimeout(() => document.getElementById('contact').scrollIntoView(), 100);" class="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors shadow-lg text-sm">
+                            Kérem a Pontos Helyszíni Ajánlatot <i class="fa-solid fa-arrow-right ml-1"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="page-webshop" class="page-view hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div>
+                    <h1 class="text-3xl font-extrabold text-white">Tamás Bau Webshop</h1>
+                    <p class="text-slate-400 text-sm">Szerelési anyagok, riasztók és kamerák közvetlen megrendelése.</p>
+                </div>
+
+                <div class="flex items-center space-x-3">
+                    <div class="relative">
+                        <input type="text" id="shop-search" oninput="renderShopProducts()" placeholder="Keresés termékekre..." class="bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 pl-9 text-sm text-white focus:outline-none focus:border-amber-500 w-48 sm:w-64">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-sm"></i>
+                    </div>
+                    <select id="shop-category" onchange="renderShopProducts()" class="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+                        <option value="all">Minden kategória</option>
+                        <option value="riaszto">Riasztórendszerek</option>
+                        <option value="kamera">Kamerák & NVR</option>
+                        <option value="villany">Villanyszerelési anyag</option>
+                        <option value="okos">Okosotthon</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="shop-products-grid" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            </div>
+        </div>
+
+        <div id="page-admin" class="page-view hidden max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+            <div class="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
+                <div>
+                    <span class="bg-amber-500/10 text-amber-400 border border-amber-500/30 text-xs px-2.5 py-1 rounded font-mono">ADMINISZTRÁCIÓS PANEL</span>
+                    <h1 class="text-3xl font-black text-white mt-1">Tamás Bau Vezérlőpult</h1>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button onclick="showPage('home')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-sm font-semibold border border-slate-700">
+                        <i class="fa-solid fa-globe mr-1.5"></i> Vissza a Weboldalra
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex space-x-2 border-b border-slate-800 mb-8 overflow-x-auto">
+                <button onclick="switchAdminTab('overview')" id="tab-btn-overview" class="admin-tab-btn py-3 px-5 text-sm font-bold border-b-2 border-amber-500 text-amber-400">
+                    <i class="fa-solid fa-chart-line mr-2"></i>Áttekintés & Statisztika
+                </button>
+                <button onclick="switchAdminTab('products')" id="tab-btn-products" class="admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-box mr-2"></i>Termékek Kezelése (CRUD)
+                </button>
+                <button onclick="switchAdminTab('orders')" id="tab-btn-orders" class="admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-receipt mr-2"></i>Rendelések
+                </button>
+                <button onclick="switchAdminTab('quotes')" id="tab-btn-quotes" class="admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-envelope-open-text mr-2"></i>Beérkezett Ajánlatkérések
+                </button>
+            </div>
+
+            <div id="admin-tab-overview" class="admin-tab-content space-y-8">
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                        <div class="text-xs text-slate-400 font-medium">Összes Árbevétel</div>
+                        <div id="kpi-revenue" class="text-2xl font-black text-amber-400 mt-2">0 Ft</div>
+                        <div class="text-xs text-emerald-400 mt-1"><i class="fa-solid fa-arrow-up mr-1"></i>+14.2% e hónapban</div>
+                    </div>
+                    <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                        <div class="text-xs text-slate-400 font-medium">Összes Megrendelés</div>
+                        <div id="kpi-orders-count" class="text-2xl font-black text-white mt-2">0 db</div>
+                        <div class="text-xs text-slate-400 mt-1">Webshop forgalom</div>
+                    </div>
+                    <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                        <div class="text-xs text-slate-400 font-medium">Függő Ajánlatkérések</div>
+                        <div id="kpi-quotes-count" class="text-2xl font-black text-sky-400 mt-2">0 db</div>
+                        <div class="text-xs text-sky-400 mt-1">Azonnali intézkedést igényel</div>
+                    </div>
+                    <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                        <div class="text-xs text-slate-400 font-medium">Regisztrált Ügyfelek</div>
+                        <div id="kpi-users-count" class="text-2xl font-black text-white mt-2">0 fő</div>
+                        <div class="text-xs text-slate-400 mt-1">Aktív adatbázis</div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                    <h3 class="text-lg font-bold text-white mb-4">Havi Bevétel Eszközök és Szolgáltatások Szerint</h3>
+                    <div class="h-64">
+                        <canvas id="adminRevenueChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div id="admin-tab-products" class="admin-tab-content hidden space-y-6">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xl font-bold text-white">Raktárkészlet & Termékkatalógus</h3>
+                    <button onclick="openProductModal()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm transition-colors">
+                        <i class="fa-solid fa-plus mr-1"></i> Új Termék Hozzáadása
+                    </button>
+                </div>
+
+                <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-300">
+                            <thead class="bg-slate-900 text-xs uppercase text-slate-400">
+                                <tr>
+                                    <th class="p-4">Termék</th>
+                                    <th class="p-4">Kategória</th>
+                                    <th class="p-4">Ár (Ft)</th>
+                                    <th class="p-4">Raktáron</th>
+                                    <th class="p-4 text-right">Műveletek</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-products-table" class="divide-y divide-slate-700">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="admin-tab-orders" class="admin-tab-content hidden space-y-6">
+                <h3 class="text-xl font-bold text-white">Beérkezett Webshop Megrendelések</h3>
+                <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-300">
+                            <thead class="bg-slate-900 text-xs uppercase text-slate-400">
+                                <tr>
+                                    <th class="p-4">Rendelés ID</th>
+                                    <th class="p-4">Vásárló</th>
+                                    <th class="p-4">Összeg</th>
+                                    <th class="p-4">Dátum</th>
+                                    <th class="p-4">Státusz</th>
+                                    <th class="p-4 text-right">Művelet</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-orders-table" class="divide-y divide-slate-700">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="admin-tab-quotes" class="admin-tab-content hidden space-y-6">
+                <h3 class="text-xl font-bold text-white">Munkatípus Ajánlatkérések & Helyszíni Felmérések</h3>
+                <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-300">
+                            <thead class="bg-slate-900 text-xs uppercase text-slate-400">
+                                <tr>
+                                    <th class="p-4">Név / Elérhetőség</th>
+                                    <th class="p-4">Munkatípus</th>
+                                    <th class="p-4">Üzenet Részletei</th>
+                                    <th class="p-4">Dátum</th>
+                                    <th class="p-4 text-right">Kezelés</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-quotes-table" class="divide-y divide-slate-700">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="page-profile" class="page-view hidden max-w-5xl mx-auto px-4 py-10 space-y-8">
+            <div class="bg-slate-800 border border-slate-700 p-6 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center space-x-4">
+                    <div class="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center text-2xl font-bold border border-amber-500/40">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <div>
+                        <h2 id="profile-user-name" class="text-2xl font-bold text-white">Kovács István</h2>
+                        <p id="profile-user-email" class="text-sm text-slate-400">kovacs@example.com</p>
+                    </div>
+                </div>
+                <button onclick="logoutUser()" class="bg-slate-900 hover:bg-slate-950 text-rose-400 border border-rose-500/30 px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
+                    <i class="fa-solid fa-right-from-bracket mr-1.5"></i> Kijelentkezés
+                </button>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="bg-slate-800 border border-slate-700 p-6 rounded-2xl space-y-4">
+                    <h3 class="text-lg font-bold text-white flex items-center">
+                        <i class="fa-solid fa-box text-amber-400 mr-2"></i> Korábbi Megrendeléseim
+                    </h3>
+                    <div id="profile-orders-list" class="space-y-3">
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 border border-slate-700 p-6 rounded-2xl space-y-4">
+                    <h3 class="text-lg font-bold text-white flex items-center">
+                        <i class="fa-solid fa-calculator text-amber-400 mr-2"></i> Mentett Árkalkulációk
+                    </h3>
+                    <div id="profile-estimates-list" class="space-y-3">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="cart-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex justify-end hidden">
+        <div class="bg-slate-900 w-full max-w-md h-full flex flex-col justify-between p-6 border-l border-slate-800 shadow-2xl">
+            <div>
+                <div class="flex justify-between items-center border-b border-slate-800 pb-4 mb-4">
+                    <h3 class="text-xl font-bold text-white flex items-center">
+                        <i class="fa-solid fa-shopping-cart text-amber-400 mr-2"></i> Bevásárlókosár
+                    </h3>
+                    <button onclick="toggleCartModal()" class="text-slate-400 hover:text-white text-xl">&times;</button>
+                </div>
+
+                <div id="cart-items-container" class="space-y-4 overflow-y-auto max-h-[calc(100vh-280px)]">
+                </div>
+            </div>
+
+            <div id="cart-footer" class="border-t border-slate-800 pt-4 space-y-4">
+                <div class="flex justify-between text-slate-300">
+                    <span>Fizetendő Végösszeg:</span>
+                    <span id="cart-total-price" class="text-2xl font-black text-amber-400">0 Ft</span>
+                </div>
+                <button onclick="checkoutCart()" class="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors shadow-lg">
+                    Megrendelés Elküldése
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="auth-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+            <button onclick="closeAuthModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl">&times;</button>
+
+            <div class="flex border-b border-slate-800 mb-6">
+                <button onclick="switchAuthTab('login')" id="auth-tab-login" class="w-1/2 py-2 font-bold text-amber-400 border-b-2 border-amber-500">Bejelentkezés</button>
+                <button onclick="switchAuthTab('register')" id="auth-tab-register" class="w-1/2 py-2 font-medium text-slate-400 border-b-2 border-transparent">Regisztráció</button>
+            </div>
+
+            <form id="auth-form-login" onsubmit="handleLoginSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">E-mail Cím</label>
+                    <input type="email" id="login-email" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm" placeholder="user@example.com">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">Jelszó</label>
+                    <input type="password" id="login-password" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm" placeholder="••••••••">
+                </div>
+                <button type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">
+                    Belépés
+                </button>
+                <div class="text-center pt-2">
+                    <button type="button" onclick="loginDemoAdmin()" class="text-xs text-amber-400 hover:underline">
+                        <i class="fa-solid fa-user-shield mr-1"></i> Gyors belépés Demo Adminisztrátorként
+                    </button>
+                </div>
+            </form>
+
+            <form id="auth-form-register" onsubmit="handleRegisterSubmit(event)" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">Teljes Név</label>
+                    <input type="text" id="reg-name" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm" placeholder="Kovács István">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">E-mail Cím</label>
+                    <input type="email" id="reg-email" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm" placeholder="user@example.com">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">Jelszó</label>
+                    <input type="password" id="reg-password" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm" placeholder="••••••••">
+                </div>
+                <button type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">
+                    Regisztráció Fiók Létrehozásához
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="product-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-6 shadow-2xl relative">
+            <button onclick="closeProductModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl">&times;</button>
+            <h3 id="product-modal-title" class="text-xl font-bold text-white mb-4">Új Termék Hozzáadása</h3>
+
+            <form onsubmit="handleProductFormSubmit(event)" class="space-y-4">
+                <input type="hidden" id="prod-id">
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">Termék Neve *</label>
+                    <input type="text" id="prod-name" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-slate-300 mb-1">Kategória</label>
+                        <select id="prod-category" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                            <option value="riaszto">Riasztórendszerek</option>
+                            <option value="kamera">Kamerák & NVR</option>
+                            <option value="villany">Villanyszerelés</option>
+                            <option value="okos">Okosotthon</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-300 mb-1">Ár (Ft) *</label>
+                        <input type="number" id="prod-price" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-slate-300 mb-1">Raktárkészlet (db)</label>
+                        <input type="number" id="prod-stock" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-300 mb-1">Ikon Típusa (FontAwesome)</label>
+                        <input type="text" id="prod-icon" placeholder="fa-shield" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">Leírás</label>
+                    <textarea id="prod-desc" rows="3" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm"></textarea>
+                </div>
+                <button type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">
+                    Mentés Az Adatbázisba
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="toast-notification" class="fixed bottom-5 right-5 bg-amber-500 text-slate-950 px-5 py-3 rounded-xl font-bold shadow-2xl transition-all duration-300 transform translate-y-20 opacity-0 z-50 flex items-center space-x-2">
+        <i class="fa-solid fa-circle-check text-lg"></i>
+        <span id="toast-message">Sikeres művelet!</span>
+    </div>
+
+    <footer class="bg-slate-950 border-t border-slate-800 py-12 mt-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid md:grid-cols-4 gap-8">
+            <div class="space-y-4">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center text-slate-950 font-black text-xl">TB</div>
+                    <span class="text-lg font-bold text-white">TAMÁS BAU KFT.</span>
+                </div>
+                <p class="text-xs text-slate-400">Megbízható villanyszerelési és biztonságtechnikai szolgáltatások garanciával Budapesten és teljes Pest megyében.</p>
+            </div>
+            <div>
+                <h4 class="text-white font-bold text-sm mb-3">Gyorslinkek</h4>
+                <ul class="space-y-2 text-xs text-slate-400">
+                    <li><a href="#" onclick="showPage('home')" class="hover:text-amber-400">Kezdőlap</a></li>
+                    <li><a href="#" onclick="showPage('calculator')" class="hover:text-amber-400">Árkalkulátor</a></li>
+                    <li><a href="#" onclick="showPage('webshop')" class="hover:text-amber-400">Webshop</a></li>
+                    <li><a href="#services" onclick="showPage('home')" class="hover:text-amber-400">Szolgáltatások</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="text-white font-bold text-sm mb-3">Szolgáltatásaink</h4>
+                <ul class="space-y-2 text-xs text-slate-400">
+                    <li>Villanyszerelés & Érintésvédelem</li>
+                    <li>MABISZ Riasztórendszerek</li>
+                    <li>4K IP Kamerarendszerek</li>
+                    <li>Beléptető- és Kaputelefonok</li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="text-white font-bold text-sm mb-3">Cégadatok</h4>
+                <div class="text-xs text-slate-400 space-y-1">
+                    <p>Tamás Bau Kft.</p>
+                    <p>Adószám: 12345678-2-41</p>
+                    <p>Cégjegyzékszám: 01-09-999999</p>
+                    <p class="pt-2 text-slate-500">&copy; 2026 Tamás Bau Kft. Minden jog fenntartva.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        const defaultProducts = [
+            { id: 101, name: "Ajax Hub 2 Plus Okos Riasztóközpont", category: "riaszto", price: 124900, stock: 12, icon: "fa-shield-halved", desc: "Ethernet, Wi-Fi és dual SIM támogatású központi egység." },
+            { id: 102, name: "Ajax MotionProtect Vezeték Nélküli Mozgásérzékelő", category: "riaszto", price: 18900, stock: 45, icon: "fa-sensor-on", desc: "Kisállat-védett infrás mozgásérzékelő." },
+            { id: 103, name: "Hikvision 4K IP Dome Kamera 30m IR", category: "kamera", price: 42500, stock: 18, icon: "fa-video", desc: "Acusense ember/jármű megkülönböztetés, IP67 vízálló." },
+            { id: 104, name: "Schneider Electric 16A Kismegszakító (C16)", category: "villany", price: 1490, stock: 150, icon: "fa-bolt", desc: "B és C kioldási karakterisztikával lakossági elosztókhoz." },
+            { id: 105, name: "Wi-Fi Videó Kaputelefon Beltéri Egységgel", category: "okos", price: 68900, stock: 8, icon: "fa-door-closed", desc: "Mobiltelefonos kapunyitás és HD videókép." },
+            { id: 106, name: "Fi-Relé (Áram-védőkapcsoló) 40A 30mA", category: "villany", price: 11200, stock: 30, icon: "fa-plug", desc: "Életvédelmi relé családi házak védelméhez." }
+        ];
+
+        const defaultOrders = [
+            { id: "ORD-9821", customer: "Nagy Péter", total: 143800, date: "2026-03-18", status: "Feldolgozás alatt" },
+            { id: "ORD-9820", customer: "Szabó Éva", total: 42500, date: "2026-03-15", status: "Teljesítve" }
+        ];
+
+        const defaultQuotes = [
+            { id: 1, name: "Varga Balázs", phone: "+36 30 555 1234", type: "Riasztó kiépítés", message: "120m2-es családi házhoz szeretnék komplett Ajax rendszert.", date: "2026-03-19" }
+        ];
+
+        let state = {
+            products: JSON.parse(localStorage.getItem('tb_products')) || defaultProducts,
+            orders: JSON.parse(localStorage.getItem('tb_orders')) || defaultOrders,
+            quotes: JSON.parse(localStorage.getItem('tb_quotes')) || defaultQuotes,
+            cart: JSON.parse(localStorage.getItem('tb_cart')) || [],
+            currentUser: JSON.parse(localStorage.getItem('tb_user')) || null,
+            estimates: JSON.parse(localStorage.getItem('tb_estimates')) || [],
+            calcData: { area: 70, wiringType: 'full', alarmQty: 1, cameraQty: 2, intercom: false }
+        };
+
+        function saveState() {
+            localStorage.setItem('tb_products', JSON.stringify(state.products));
+            localStorage.setItem('tb_orders', JSON.stringify(state.orders));
+            localStorage.setItem('tb_quotes', JSON.stringify(state.quotes));
+            localStorage.setItem('tb_cart', JSON.stringify(state.cart));
+            localStorage.setItem('tb_user', JSON.stringify(state.currentUser));
+            localStorage.setItem('tb_estimates', JSON.stringify(state.estimates));
+        }
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page-view').forEach(el => el.classList.add('hidden'));
+            const target = document.getElementById(`page-${pageId}`);
+            if(target) target.classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            if(pageId === 'webshop') renderShopProducts();
+            if(pageId === 'admin') renderAdminTab('overview');
+            if(pageId === 'profile') renderUserProfile();
+            if(pageId === 'calculator') updateCalculator();
+        }
+
+        function toggleMobileMenu() {
+            document.getElementById('mobile-menu').classList.toggle('hidden');
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast-notification');
+            document.getElementById('toast-message').innerText = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        function updateCalculator() {
+            const area = parseInt(document.getElementById('calc-area').value);
+            const wiringType = document.getElementById('calc-wiring-type').value;
+            const intercom = document.getElementById('calc-intercom').checked;
+
+            document.getElementById('calc-area-val').innerText = `${area} m²`;
+
+            let wiringRate = 0;
+            if(wiringType === 'partial') wiringRate = 8000;
+            if(wiringType === 'full') wiringRate = 14000;
+            if(wiringType === 'premium') wiringRate = 20000;
+
+            const wiringCost = area * wiringRate;
+            const alarmCost = state.calcData.alarmQty * 120000;
+            const cameraCost = state.calcData.cameraQty * 45000;
+            const intercomCost = intercom ? 65000 : 0;
+
+            const total = wiringCost + alarmCost + cameraCost + intercomCost;
+
+            document.getElementById('summary-wiring-cost').innerText = wiringCost.toLocaleString('hu-HU') + ' Ft';
+            document.getElementById('summary-alarm-cost').innerText = alarmCost.toLocaleString('hu-HU') + ' Ft';
+            document.getElementById('summary-camera-cost').innerText = cameraCost.toLocaleString('hu-HU') + ' Ft';
+            document.getElementById('summary-intercom-cost').innerText = intercomCost.toLocaleString('hu-HU') + ' Ft';
+            document.getElementById('summary-total-cost').innerText = total.toLocaleString('hu-HU') + ' Ft';
+
+            state.calcData = { area, wiringType, alarmQty: state.calcData.alarmQty, cameraQty: state.calcData.cameraQty, intercom, total };
+        }
+
+        function adjustCalcQty(type, delta) {
+            if(type === 'alarm') {
+                state.calcData.alarmQty = Math.max(0, state.calcData.alarmQty + delta);
+                document.getElementById('calc-alarm-qty').innerText = state.calcData.alarmQty;
+            } else if(type === 'camera') {
+                state.calcData.cameraQty = Math.max(0, state.calcData.cameraQty + delta);
+                document.getElementById('calc-camera-qty').innerText = state.calcData.cameraQty;
+            }
+            updateCalculator();
+        }
+
+        function saveEstimateToProfile() {
+            if(!state.currentUser) {
+                openAuthModal('login');
+                showToast("Mentéshez kérjük, jelentkezzen be!");
+                return;
+            }
+            const estimate = {
+                id: Date.now(),
+                date: new Date().toLocaleDateString('hu-HU'),
+                details: `${state.calcData.area} m² / ${state.calcData.wiringType}`,
+                total: state.calcData.total
+            };
+            state.estimates.push(estimate);
+            saveState();
+            showToast("Kalkuláció elmentve a profiljához!");
+        }
+
+        function renderShopProducts() {
+            const container = document.getElementById('shop-products-grid');
+            const search = document.getElementById('shop-search').value.toLowerCase();
+            const category = document.getElementById('shop-category').value;
+
+            const filtered = state.products.filter(p => {
+                const matchSearch = p.name.toLowerCase().includes(search) || p.desc.toLowerCase().includes(search);
+                const matchCat = category === 'all' || p.category === category;
+                return matchSearch && matchCat;
+            });
+
+            container.innerHTML = filtered.map(p => `
+                <div class="bg-slate-800 border border-slate-700 hover:border-amber-500/50 rounded-2xl p-5 flex flex-col justify-between transition-all">
+                    <div>
+                        <div class="w-full h-36 bg-slate-900 rounded-xl flex items-center justify-center text-4xl text-amber-400 mb-4 border border-slate-800">
+                            <i class="fa-solid ${p.icon || 'fa-box'}"></i>
+                        </div>
+                        <span class="text-[10px] font-bold uppercase tracking-wider bg-slate-900 text-amber-400 px-2.5 py-1 rounded border border-slate-700">${p.category}</span>
+                        <h4 class="font-bold text-white text-base mt-2">${p.name}</h4>
+                        <p class="text-xs text-slate-400 mt-1 line-clamp-2">${p.desc}</p>
+                    </div>
+
+                    <div class="mt-6 pt-3 border-t border-slate-700 flex items-center justify-between">
+                        <div>
+                            <span class="text-xs text-slate-400 block">Raktáron: ${p.stock} db</span>
+                            <span class="text-lg font-black text-white">${p.price.toLocaleString('hu-HU')} Ft</span>
+                        </div>
+                        <button onclick="addToCart(${p.id})" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-2.5 rounded-xl transition-colors">
+                            <i class="fa-solid fa-cart-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addToCart(productId) {
+            const product = state.products.find(p => p.id === productId);
+            if(!product) return;
+
+            const existing = state.cart.find(item => item.id === productId);
+            if(existing) {
+                existing.qty += 1;
+            } else {
+                state.cart.push({ ...product, qty: 1 });
+            }
+            saveState();
+            updateCartBadge();
+            showToast(`${product.name} a kosárba került!`);
+        }
+
+        function updateCartBadge() {
+            const badge = document.getElementById('cart-badge');
+            const totalQty = state.cart.reduce((sum, item) => sum + item.qty, 0);
+            if(totalQty > 0) {
+                badge.innerText = totalQty;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function toggleCartModal() {
+            const modal = document.getElementById('cart-modal');
+            modal.classList.toggle('hidden');
+            if(!modal.classList.contains('hidden')) renderCartItems();
+        }
+
+        function renderCartItems() {
+            const container = document.getElementById('cart-items-container');
+            if(state.cart.length === 0) {
+                container.innerHTML = `<p class="text-slate-400 text-center py-8 text-sm">A kosár jelenleg üres.</p>`;
+                document.getElementById('cart-total-price').innerText = "0 Ft";
+                return;
+            }
+
+            let total = 0;
+            container.innerHTML = state.cart.map((item, index) => {
+                total += item.price * item.qty;
+                return `
+                    <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 flex justify-between items-center">
+                        <div class="pr-2">
+                            <div class="font-bold text-white text-sm">${item.name}</div>
+                            <div class="text-xs text-amber-400 font-semibold">${item.price.toLocaleString('hu-HU')} Ft / db</div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="updateCartQty(${index}, -1)" class="bg-slate-700 text-white w-6 h-6 rounded font-bold text-xs">-</button>
+                            <span class="text-sm font-bold text-white">${item.qty}</span>
+                            <button onclick="updateCartQty(${index}, 1)" class="bg-slate-700 text-white w-6 h-6 rounded font-bold text-xs">+</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('cart-total-price').innerText = total.toLocaleString('hu-HU') + " Ft";
+        }
+
+        function updateCartQty(index, delta) {
+            state.cart[index].qty += delta;
+            if(state.cart[index].qty <= 0) state.cart.splice(index, 1);
+            saveState();
+            updateCartBadge();
+            renderCartItems();
+        }
+
+        function checkoutCart() {
+            if(state.cart.length === 0) return;
+            const newOrder = {
+                id: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+                customer: state.currentUser ? state.currentUser.name : "Vendég Vásárló",
+                total: state.cart.reduce((sum, i) => sum + (i.price * i.qty), 0),
+                date: new Date().toISOString().split('T')[0],
+                status: "Feldolgozás alatt"
+            };
+            state.orders.unshift(newOrder);
+            state.cart = [];
+            saveState();
+            updateCartBadge();
+            toggleCartModal();
+            showToast("Sikeres rendelés! Köszönjük a vásárlást.");
+        }
+
+        function openAuthModal(tab) {
+            document.getElementById('auth-modal').classList.remove('hidden');
+            switchAuthTab(tab);
+        }
+        function closeAuthModal() {
+            document.getElementById('auth-modal').classList.add('hidden');
+        }
+        function switchAuthTab(tab) {
+            if(tab === 'login') {
+                document.getElementById('auth-form-login').classList.remove('hidden');
+                document.getElementById('auth-form-register').classList.add('hidden');
+                document.getElementById('auth-tab-login').className = "w-1/2 py-2 font-bold text-amber-400 border-b-2 border-amber-500";
+                document.getElementById('auth-tab-register').className = "w-1/2 py-2 font-medium text-slate-400 border-b-2 border-transparent";
+            } else {
+                document.getElementById('auth-form-login').classList.add('hidden');
+                document.getElementById('auth-form-register').classList.remove('hidden');
+                document.getElementById('auth-tab-login').className = "w-1/2 py-2 font-medium text-slate-400 border-b-2 border-transparent";
+                document.getElementById('auth-tab-register').className = "w-1/2 py-2 font-bold text-amber-400 border-b-2 border-amber-500";
+            }
+        }
+
+        function handleLoginSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            state.currentUser = { name: email.split('@')[0], email: email, role: 'user' };
+            saveState();
+            updateAuthUI();
+            closeAuthModal();
+            showToast("Sikeres bejelentkezés!");
+        }
+
+        function handleRegisterSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('reg-name').value;
+            const email = document.getElementById('reg-email').value;
+            state.currentUser = { name: name, email: email, role: 'user' };
+            saveState();
+            updateAuthUI();
+            closeAuthModal();
+            showToast("Fiók sikeresen létrehozva!");
+        }
+
+        function loginDemoAdmin() {
+            state.currentUser = { name: "Tamás Bau Admin", email: "admin@tamasbau.hu", role: 'admin' };
+            saveState();
+            updateAuthUI();
+            closeAuthModal();
+            showToast("Bejelentkezve Adminisztrátorként!");
+            showPage('admin');
+        }
+
+        function logoutUser() {
+            state.currentUser = null;
+            saveState();
+            updateAuthUI();
+            showPage('home');
+            showToast("Kijelentkezve.");
+        }
+
+        function updateAuthUI() {
+            const container = document.getElementById('auth-buttons-container');
+            const statusText = document.getElementById('user-status-text');
+
+            if(state.currentUser) {
+                statusText.innerText = `Bejelentkezve: ${state.currentUser.name}`;
+                container.innerHTML = `
+                    <button onclick="showPage('profile')" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all">
+                        <i class="fa-solid fa-user-circle mr-1"></i> Fiókom
+                    </button>
+                `;
+            } else {
+                statusText.innerText = "Vendég munkamenet";
+                container.innerHTML = `
+                    <button onclick="openAuthModal('login')" class="hidden sm:inline-flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl border border-slate-700 text-sm font-medium transition-all">
+                        <i class="fa-solid fa-right-to-bracket text-amber-400"></i>
+                        <span>Bejelentkezés</span>
+                    </button>
+                `;
+            }
+        }
+
+        function renderUserProfile() {
+            if(!state.currentUser) return;
+            document.getElementById('profile-user-name').innerText = state.currentUser.name;
+            document.getElementById('profile-user-email').innerText = state.currentUser.email;
+
+            const ordersList = document.getElementById('profile-orders-list');
+            ordersList.innerHTML = state.orders.map(o => `
+                <div class="bg-slate-900 p-3 rounded-xl border border-slate-700 flex justify-between items-center text-xs">
+                    <div>
+                        <div class="font-bold text-white">${o.id}</div>
+                        <div class="text-slate-400">${o.date}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-bold text-amber-400">${o.total.toLocaleString('hu-HU')} Ft</div>
+                        <div class="text-emerald-400">${o.status}</div>
+                    </div>
+                </div>
+            `).join('') || '<p class="text-slate-500 text-xs">Még nincs rendelése.</p>';
+
+            const estimatesList = document.getElementById('profile-estimates-list');
+            estimatesList.innerHTML = state.estimates.map(e => `
+                <div class="bg-slate-900 p-3 rounded-xl border border-slate-700 flex justify-between items-center text-xs">
+                    <div>
+                        <div class="font-bold text-white">${e.details}</div>
+                        <div class="text-slate-400">${e.date}</div>
+                    </div>
+                    <div class="font-bold text-amber-400">${e.total.toLocaleString('hu-HU')} Ft</div>
+                </div>
+            `).join('') || '<p class="text-slate-500 text-xs">Még nincs mentett kalkuláció.</p>';
+        }
+
+        function handleContactSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('contact-name').value;
+            const phone = document.getElementById('contact-phone').value;
+            const type = document.getElementById('contact-type').value;
+            const message = document.getElementById('contact-message').value;
+
+            state.quotes.unshift({
+                id: Date.now(),
+                name,
+                phone,
+                type,
+                message,
+                date: new Date().toISOString().split('T')[0]
+            });
+            saveState();
+            e.target.reset();
+            showToast("Köszönjük! Árajánlatkérését elküldtük.");
+        }
+
+        function toggleAdminView() {
+            if(!state.currentUser || state.currentUser.role !== 'admin') {
+                loginDemoAdmin();
+            } else {
+                showPage('admin');
+            }
+        }
+
+        function switchAdminTab(tab) {
+            document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+                btn.className = "admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white";
+            });
+            document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.add('hidden'));
+
+            document.getElementById(`tab-btn-${tab}`).className = "admin-tab-btn py-3 px-5 text-sm font-bold border-b-2 border-amber-500 text-amber-400";
+            document.getElementById(`admin-tab-${tab}`).classList.remove('hidden');
+
+            renderAdminTab(tab);
+        }
+
+        function renderAdminTab(tab) {
+            if(tab === 'overview') {
+                const totalRev = state.orders.reduce((sum, o) => sum + o.total, 0);
+                document.getElementById('kpi-revenue').innerText = totalRev.toLocaleString('hu-HU') + " Ft";
+                document.getElementById('kpi-orders-count').innerText = state.orders.length + " db";
+                document.getElementById('kpi-quotes-count').innerText = state.quotes.length + " db";
+                document.getElementById('kpi-users-count').innerText = "14 fő";
+
+                renderAdminChart();
+            } else if(tab === 'products') {
+                const table = document.getElementById('admin-products-table');
+                table.innerHTML = state.products.map(p => `
+                    <tr class="hover:bg-slate-700/50">
+                        <td class="p-4 font-bold text-white">${p.name}</td>
+                        <td class="p-4"><span class="bg-slate-900 text-amber-400 text-xs px-2 py-0.5 rounded border border-slate-700">${p.category}</span></td>
+                        <td class="p-4 font-semibold">${p.price.toLocaleString('hu-HU')} Ft</td>
+                        <td class="p-4">${p.stock} db</td>
+                        <td class="p-4 text-right space-x-2">
+                            <button onclick="editProduct(${p.id})" class="text-sky-400 hover:underline"><i class="fa-solid fa-pen"></i> Szerkeszt</button>
+                            <button onclick="deleteProduct(${p.id})" class="text-rose-400 hover:underline"><i class="fa-solid fa-trash"></i> Töröl</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } else if(tab === 'orders') {
+                const table = document.getElementById('admin-orders-table');
+                table.innerHTML = state.orders.map(o => `
+                    <tr class="hover:bg-slate-700/50">
+                        <td class="p-4 font-mono text-xs text-amber-400">${o.id}</td>
+                        <td class="p-4 font-semibold text-white">${o.customer}</td>
+                        <td class="p-4">${o.total.toLocaleString('hu-HU')} Ft</td>
+                        <td class="p-4 text-xs text-slate-400">${o.date}</td>
+                        <td class="p-4"><span class="bg-emerald-500/10 text-emerald-400 text-xs px-2 py-1 rounded">${o.status}</span></td>
+                        <td class="p-4 text-right">
+                            <button onclick="showToast('Rendelés állapota frissítve')" class="text-xs bg-slate-700 hover:bg-slate-600 px-2.5 py-1 rounded text-white">Kezelem</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } else if(tab === 'quotes') {
+                const table = document.getElementById('admin-quotes-table');
+                table.innerHTML = state.quotes.map(q => `
+                    <tr class="hover:bg-slate-700/50">
+                        <td class="p-4">
+                            <div class="font-bold text-white">${q.name}</div>
+                            <div class="text-xs text-slate-400">${q.phone}</div>
+                        </td>
+                        <td class="p-4 text-amber-400 text-xs font-semibold">${q.type}</td>
+                        <td class="p-4 text-xs max-w-xs truncate">${q.message}</td>
+                        <td class="p-4 text-xs text-slate-400">${q.date}</td>
+                        <td class="p-4 text-right">
+                            <a href="tel:${q.phone}" class="bg-amber-500 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg hover:bg-amber-600 inline-block"><i class="fa-solid fa-phone mr-1"></i> Hívás</a>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        function openProductModal(prodId = null) {
+            document.getElementById('product-modal').classList.remove('hidden');
+            if(prodId) {
+                const p = state.products.find(x => x.id === prodId);
+                document.getElementById('product-modal-title').innerText = "Termék Szerkesztése";
+                document.getElementById('prod-id').value = p.id;
+                document.getElementById('prod-name').value = p.name;
+                document.getElementById('prod-category').value = p.category;
+                document.getElementById('prod-price').value = p.price;
+                document.getElementById('prod-stock').value = p.stock;
+                document.getElementById('prod-icon').value = p.icon || 'fa-box';
+                document.getElementById('prod-desc').value = p.desc;
+            } else {
+                document.getElementById('product-modal-title').innerText = "Új Termék Hozzáadása";
+                document.getElementById('prod-id').value = '';
+                document.getElementById('prod-name').value = '';
+                document.getElementById('prod-price').value = '';
+                document.getElementById('prod-stock').value = 10;
+                document.getElementById('prod-desc').value = '';
+            }
+        }
+
+        function closeProductModal() {
+            document.getElementById('product-modal').classList.add('hidden');
+        }
+
+        function handleProductFormSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('prod-id').value;
+            const name = document.getElementById('prod-name').value;
+            const category = document.getElementById('prod-category').value;
+            const price = parseInt(document.getElementById('prod-price').value);
+            const stock = parseInt(document.getElementById('prod-stock').value);
+            const icon = document.getElementById('prod-icon').value || 'fa-box';
+            const desc = document.getElementById('prod-desc').value;
+
+            if(id) {
+                const index = state.products.findIndex(p => p.id == id);
+                if(index !== -1) {
+                    state.products[index] = { id: parseInt(id), name, category, price, stock, icon, desc };
+                }
+            } else {
+                const newProd = { id: Date.now(), name, category, price, stock, icon, desc };
+                state.products.push(newProd);
+            }
+
+            saveState();
+            closeProductModal();
+            renderAdminTab('products');
+            showToast("Adatbázis frissítve!");
+        }
+
+        function editProduct(id) {
+            openProductModal(id);
+        }
+
+        function deleteProduct(id) {
+            state.products = state.products.filter(p => p.id !== id);
+            saveState();
+            renderAdminTab('products');
+            showToast("Termék törölve!");
+        }
+
+        let revenueChart = null;
+        function renderAdminChart() {
+            const ctx = document.getElementById('adminRevenueChart');
+            if(!ctx) return;
+            if(revenueChart) revenueChart.destroy();
+
+            revenueChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Jan', 'Feb', 'Már', 'Ápr', 'Máj', 'Jún'],
+                    datasets: [
+                        {
+                            label: 'Villanyszerelés (ezer Ft)',
+                            data: [850, 1200, 950, 1400, 1100, 1600],
+                            backgroundColor: '#f59e0b'
+                        },
+                        {
+                            label: 'Riasztó & Kamera (ezer Ft)',
+                            data: [600, 900, 1100, 850, 1300, 1500],
+                            backgroundColor: '#0284c7'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#94a3b8' } }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                    }
+                }
+            });
+        }
+
+        window.onload = function() {
+            updateAuthUI();
+            updateCartBadge();
+            updateCalculator();
+        };
+    </script>
+</body>
+</html>
