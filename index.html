@@ -1579,16 +1579,24 @@
         }
 
         async function apiFetch(url, options = {}) {
-            const mergedHeaders = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+            const { allowErrorPayload = false, headers: customHeaders = {}, ...fetchOptions } = options;
+            const mergedHeaders = { 'Content-Type': 'application/json', ...customHeaders };
             if (state.csrfToken) {
                 mergedHeaders['X-CSRF-Token'] = state.csrfToken;
             }
             const response = await fetch(url, {
                 credentials: 'same-origin',
                 headers: mergedHeaders,
-                ...options,
+                ...fetchOptions,
             });
             const data = await response.json().catch(() => ({}));
+            if (allowErrorPayload) {
+                return {
+                    ...data,
+                    __httpOk: response.ok,
+                    __status: response.status
+                };
+            }
             if (!response.ok || data.ok === false) {
                 throw new Error(data.error || 'Szerverhiba történt.');
             }
@@ -1653,7 +1661,10 @@
 
         async function refreshSmtpStatus() {
             if (!state.currentUser || state.currentUser.role !== 'admin') return;
-            const data = await apiFetch(API.smtp);
+            const data = await apiFetch(API.smtp, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'status' })
+            });
             state.smtpDiagnostics.config = data.config || null;
             renderSmtpConfigSummary(state.smtpDiagnostics.config);
             renderSmtpResult(state.smtpDiagnostics.result, state.smtpDiagnostics.lastCheckedAt);
@@ -2611,14 +2622,18 @@
             try {
                 const data = await apiFetch(API.smtp, {
                     method: 'POST',
-                    body: JSON.stringify({ action: 'check' })
+                    body: JSON.stringify({ action: 'check' }),
+                    allowErrorPayload: true
                 });
                 state.smtpDiagnostics.config = data.config || state.smtpDiagnostics.config;
                 state.smtpDiagnostics.result = data.result || null;
                 state.smtpDiagnostics.lastCheckedAt = data.meta?.checked_at || new Date().toISOString();
                 renderSmtpConfigSummary(state.smtpDiagnostics.config);
                 renderSmtpResult(state.smtpDiagnostics.result, state.smtpDiagnostics.lastCheckedAt);
-                showToast(data.result?.success ? 'SMTP kapcsolat rendben.' : (data.result?.message || 'SMTP kapcsolat hiba.'));
+                if (data.__httpOk !== true || data.ok !== true) {
+                    throw new Error(data.error || data.result?.message || 'SMTP kapcsolat hiba.');
+                }
+                showToast('SMTP kapcsolat rendben.');
             } catch (err) {
                 showToast(err.message);
             }
@@ -2641,14 +2656,18 @@
             try {
                 const data = await apiFetch(API.smtp, {
                     method: 'POST',
-                    body: JSON.stringify({ action: 'send_test', recipient_email: recipientEmail, confirm: true })
+                    body: JSON.stringify({ action: 'send_test', recipient_email: recipientEmail, confirm: true }),
+                    allowErrorPayload: true
                 });
                 state.smtpDiagnostics.config = data.config || state.smtpDiagnostics.config;
                 state.smtpDiagnostics.result = data.result || null;
                 state.smtpDiagnostics.lastCheckedAt = data.meta?.checked_at || new Date().toISOString();
                 renderSmtpConfigSummary(state.smtpDiagnostics.config);
                 renderSmtpResult(state.smtpDiagnostics.result, state.smtpDiagnostics.lastCheckedAt);
-                showToast(data.result?.success ? 'Próba e-mail elküldve.' : (data.result?.message || 'Próba e-mail hiba.'));
+                if (data.__httpOk !== true || data.ok !== true) {
+                    throw new Error(data.error || data.result?.message || 'Próba e-mail hiba.');
+                }
+                showToast('Próba e-mail elküldve.');
             } catch (err) {
                 showToast(err.message);
             }

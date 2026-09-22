@@ -10,7 +10,7 @@ Ez a projekt a korábbi statikus `index.html` verzió továbbfejlesztett, PHP/My
 composer install
 ```
 
-A projekt PHPMailer támogatással működik. Az SMTP diagnosztikai és tesztküldő admin funkció először a Composer `vendor/autoload.php` betöltőt próbálja használni, majd cPanel kompatibilis manuális fallbackként a `vendor/PHPMailer/src` fájlokat.
+A projekt PHPMailer támogatással működik. Az SMTP diagnosztikai és tesztküldő admin funkció először a Composer `vendor/autoload.php` betöltőt próbálja használni, majd cPanel kompatibilis manuális fallbackként a `vendor/PHPMailer/src` fájlokat. Ha SMTP nincs konfigurálva és `APP_ENV=development`, a meglévő fejlesztői e-mail log fallback (`TB_DEV_MAIL_LOG`) továbbra is elérhető az alkalmazás többi e-mail folyamatában.
 
 ### `.env` létrehozása
 
@@ -51,6 +51,7 @@ Ezután állítsd be a saját adatbázis- és SMTP-adataidat.
 - `TB_DEV_MAIL_LOG` (fejlesztői log fájl, alapból `logs/mail-dev.log`)
 
 > Visszafelé kompatibilitás: a korábbi `TB_MAIL_*` kulcsok továbbra is támogatottak.
+> Prioritás: ha mindkét kulcskészlet meg van adva, a `MAIL_*` értékek élveznek elsőbbséget, a `TB_MAIL_*` csak fallback.
 
 > Fontos: SMTP jelszót, `.env` fájlt vagy valódi szerverhozzáférést ne commitolj a repository-ba.
 
@@ -227,12 +228,19 @@ Minden új SQL művelet prepared statementet használ.
 2. **SMTP konfiguráció**
    - Környezeti változókkal: cPanelben állítsd be a `MAIL_*` kulcsokat.
    - Vagy másold az `api/config.example.php` fájlt `api/config.local.php` néven, és töltsd ki a valós SMTP adatokat.
+   - Prioritás: ha ugyanaz a kulcs környezeti változóban és `api/config.local.php`-ban is meg van adva, az **env érték élvez elsőbbséget**.
 3. **PHPMailer manuális feltöltése (Composer/SSH nélkül)**
    - Töltsd le a hivatalos PHPMailer csomagot.
+   - A `vendor` mappát elsődlegesen a projekt gyökerébe töltsd fel (ahol az `index.html` található). Ha a tárhelystruktúra miatt csak `api/vendor` használható, azt is támogatja a fallback loader.
    - Hozd létre a következő szerkezetet:
      - `vendor/PHPMailer/src/Exception.php`
      - `vendor/PHPMailer/src/PHPMailer.php`
      - `vendor/PHPMailer/src/SMTP.php`
+   - `api/vendor` esetén ennek megfelelően:
+     - `api/vendor/PHPMailer/src/Exception.php`
+     - `api/vendor/PHPMailer/src/PHPMailer.php`
+     - `api/vendor/PHPMailer/src/SMTP.php`
+   - Elfogadott alternatíva: `vendor/PHPMailer/PHPMailer/src/...` vagy `vendor/phpmailer/phpmailer/src/...`.
 4. **SMTP diagnosztika megnyitása**
    - Lépj be admin felhasználóval.
    - Nyisd meg az Admin panelen az **SMTP diagnosztika** tabot.
@@ -253,9 +261,9 @@ Minden új SQL művelet prepared statementet használ.
 
 ## 11) SMTP diagnosztika API
 
-- `GET api/smtp.php` – admin-only konfiguráció összefoglaló
-- `POST api/smtp.php` + `action=check` – SMTP kapcsolat és hitelesítés ellenőrzése (küldés nélkül)
-- `POST api/smtp.php` + `action=send_test` – megerősítéssel próba-e-mail küldése explicit címzettre
+- `POST api/smtp.php` + `action=status` (CSRF védetten) – admin-only konfiguráció összefoglaló
+- `POST api/smtp.php` + `action=check` (**JSON body-ban**) – SMTP kapcsolat és hitelesítés ellenőrzése (küldés nélkül)
+- `POST api/smtp.php` + `action=send_test` (**JSON body-ban**) – megerősítéssel próba-e-mail küldése explicit címzettre
 
 ## 12) API végpontok
 

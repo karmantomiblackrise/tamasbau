@@ -58,6 +58,7 @@ function smtp_build_phpmailer(array $mailConfig): \PHPMailer\PHPMailer\PHPMailer
     $mailer->Password = (string) ($mailConfig['password'] ?? '');
     $mailer->CharSet = 'UTF-8';
     $mailer->XMailer = 'Tamás Bau SMTP diagnosztika';
+    $mailer->Helo = (string) ($mailConfig['ehlo_domain'] ?? 'localhost');
 
     $secure = strtolower((string) ($mailConfig['secure'] ?? ''));
     if ($secure === 'tls') {
@@ -97,7 +98,8 @@ function smtp_check_connection(array $mailConfig): array
             'details' => $steps,
         ];
     } finally {
-        if ($connected) {
+        $smtp = $mailer->getSMTPInstance();
+        if (($connected || ($smtp && method_exists($smtp, 'connected') && $smtp->connected()))) {
             $mailer->smtpClose();
         }
     }
@@ -112,7 +114,7 @@ function smtp_send_test_mail(array $mailConfig, string $recipientEmail): array
     }
 
     if (($mailConfig['from_address'] ?? '') === '' || !filter_var((string) $mailConfig['from_address'], FILTER_VALIDATE_EMAIL)) {
-        throw new InvalidArgumentException('A feladó e-mail cím (MAIL_FROM_ADDRESS) hiányzik vagy érvénytelen.');
+        throw new InvalidArgumentException('A feladó e-mail cím hiányzik vagy érvénytelen a konfigurációban.');
     }
 
     $mailer = smtp_build_phpmailer($mailConfig);
@@ -137,28 +139,28 @@ function smtp_send_test_mail(array $mailConfig, string $recipientEmail): array
 
 $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 $payload = get_json_input();
-$action = clean_string($_GET['action'] ?? ($payload['action'] ?? 'status'));
-
-$user = require_admin();
-$mailConfig = app_config()['mail'];
-
-if ($method === 'GET') {
-    send_json([
-        'ok' => true,
-        'action' => 'status',
-        'config' => smtp_config_summary(),
-    ]);
-}
+$action = clean_string($payload['action'] ?? '');
 
 if ($method !== 'POST') {
     send_json(['ok' => false, 'error' => 'Nem támogatott HTTP metódus.'], 405);
 }
 
-if (!in_array($action, ['check', 'send_test'], true)) {
+$user = require_admin();
+$mailConfig = app_config()['mail'];
+
+if (!in_array($action, ['status', 'check', 'send_test'], true)) {
     send_json(['ok' => false, 'error' => 'Ismeretlen SMTP művelet.'], 422);
 }
 
 try {
+    if ($action === 'status') {
+        send_json([
+            'ok' => true,
+            'action' => 'status',
+            'config' => smtp_config_summary(),
+        ]);
+    }
+
     if ($action === 'check') {
         $result = smtp_check_connection($mailConfig);
         send_json([
@@ -170,35 +172,43 @@ try {
         ]);
     }
 
-    $recipient = clean_string((string) ($payload['recipient_email'] ?? ''), 190);
-    $confirmed = (bool) ($payload['confirm'] ?? false);
-    if (!$confirmed) {
-        send_json(['ok' => false, 'error' => 'A próba e-mail küldéséhez megerősítés szükséges.'], 422);
+    if ($action === 'send_test') {
+        $recipient = clean_string((string) ($payload['recipient_email'] ?? ''), 190);
+        $confirmed = filter_var($payload['confirm'] ?? null, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($confirmed !== true) {
+            send_json(['ok' => false, 'error' => 'A próba e-mail küldéséhez megerősítés szükséges.'], 422);
+        }
+
+        $result = smtp_send_test_mail($mailConfig, $recipient);
+        send_json([
+            'ok' => true,
+            'action' => 'send_test',
+            'config' => smtp_config_summary(),
+            'result' => $result,
+            'meta' => ['requested_by' => (int) ($user['id'] ?? 0), 'checked_at' => date('c')],
+        ]);
     }
 
-    $result = smtp_send_test_mail($mailConfig, $recipient);
-    send_json([
-        'ok' => true,
-        'action' => 'send_test',
-        'config' => smtp_config_summary(),
-        'result' => $result,
-        'meta' => ['requested_by' => (int) ($user['id'] ?? 0), 'checked_at' => date('c')],
-    ]);
+    send_json(['ok' => false, 'error' => 'Nem támogatott SMTP művelet.'], 422);
 } catch (Throwable $e) {
     $message = smtp_sanitize_error_message($e->getMessage());
     $fallback = $action === 'send_test'
         ? 'A próba e-mail küldése sikertelen.'
         : 'Az SMTP kapcsolatellenőrzés sikertelen.';
+    $statusCode = $e instanceof InvalidArgumentException ? 422 : 500;
 
-    send_json([
-        'ok' => true,
+    $errorResponse = [
+        'ok' => false,
         'action' => $action,
         'config' => smtp_config_summary(),
+        'error' => $message !== '' ? $message : $fallback,
         'result' => [
             'success' => false,
             'message' => $message !== '' ? $message : $fallback,
-            'details' => [$fallback],
+            'details' => [$message !== '' ? $message : $fallback],
         ],
         'meta' => ['checked_at' => date('c')],
-    ]);
+    ];
+
+    send_json($errorResponse, $statusCode);
 }
