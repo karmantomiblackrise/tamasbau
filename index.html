@@ -594,6 +594,9 @@
                 <button onclick="switchAdminTab('users')" id="tab-btn-users" class="admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white">
                     <i class="fa-solid fa-users mr-2"></i>Felhasználók
                 </button>
+                <button onclick="switchAdminTab('smtp')" id="tab-btn-smtp" class="admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-envelope-circle-check mr-2"></i>SMTP diagnosztika
+                </button>
             </div>
 
             <div id="admin-tab-overview" class="admin-tab-content space-y-8">
@@ -811,6 +814,46 @@
                             <tbody id="admin-users-table" class="divide-y divide-slate-700"></tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+
+            <div id="admin-tab-smtp" class="admin-tab-content hidden space-y-6">
+                <div class="grid xl:grid-cols-2 gap-6">
+                    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 space-y-4">
+                        <div>
+                            <h3 class="text-xl font-bold text-white">SMTP kapcsolat diagnosztika</h3>
+                            <p class="text-sm text-slate-400 mt-1">Valós SMTP kapcsolat és hitelesítés ellenőrzése e-mail küldés nélkül.</p>
+                        </div>
+                        <div id="smtp-config-summary" class="grid sm:grid-cols-2 gap-3 text-sm"></div>
+                        <div class="flex flex-wrap gap-3">
+                            <button onclick="runSmtpCheck()" class="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-sm">
+                                <i class="fa-solid fa-plug-circle-check mr-1.5"></i> SMTP kapcsolat ellenőrzése
+                            </button>
+                            <button onclick="refreshSmtpStatus()" class="px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-slate-200 text-sm hover:bg-slate-800">
+                                <i class="fa-solid fa-rotate mr-1.5"></i> Frissítés
+                            </button>
+                        </div>
+                    </div>
+                    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 space-y-4">
+                        <h4 class="text-lg font-bold text-white">Biztonságos próba e-mail küldés</h4>
+                        <p class="text-sm text-slate-400">A küldés csak az itt megadott címre történik, megerősítés után.</p>
+                        <div>
+                            <label class="block text-xs text-slate-300 mb-1">Címzett e-mail cím *</label>
+                            <input type="email" id="smtp-test-recipient" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm" placeholder="pelda@domain.hu" autocomplete="off">
+                        </div>
+                        <button onclick="sendSmtpTestEmail()" class="px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-sm">
+                            <i class="fa-solid fa-paper-plane mr-1.5"></i> Próba e-mail küldése
+                        </button>
+                        <p class="text-xs text-slate-500">Tárgy: Tamás Bau SMTP teszt – sikeres kézbesítés ellenőrzése</p>
+                    </div>
+                </div>
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+                    <div class="flex items-center justify-between gap-3 mb-3">
+                        <h4 class="text-lg font-bold text-white">Diagnosztikai eredmény</h4>
+                        <span id="smtp-last-check-at" class="text-xs text-slate-400">Még nem futott.</span>
+                    </div>
+                    <div id="smtp-diagnostic-status" class="text-sm text-slate-400 mb-3">Futtassa az SMTP ellenőrzést vagy a próba e-mail küldést.</div>
+                    <ul id="smtp-diagnostic-details" class="space-y-2 text-sm text-slate-300"></ul>
                 </div>
             </div>
         </div>
@@ -1157,7 +1200,8 @@
             quotes: 'api/quotes.php',
             estimates: 'api/estimates.php',
             supportPublic: 'api/support.php',
-            supportAdmin: 'api/support-chats.php'
+            supportAdmin: 'api/support-chats.php',
+            smtp: 'api/smtp.php'
         };
 
         let state = {
@@ -1182,6 +1226,11 @@
                 widgetOpen: false,
                 widgetMaximized: false,
                 loading: false
+            },
+            smtpDiagnostics: {
+                config: null,
+                result: null,
+                lastCheckedAt: null
             },
             calcData: { area: 70, wiringType: 'full', alarmQty: 1, cameraQty: 2, intercom: false, total: 0 }
         };
@@ -1297,6 +1346,51 @@
                 badge.innerText = String(unreadCount);
                 badge.classList.toggle('hidden', unreadCount === 0);
             }
+        }
+
+        function renderSmtpConfigSummary(config = null) {
+            const target = document.getElementById('smtp-config-summary');
+            if (!target) return;
+            if (!config) {
+                target.innerHTML = '<div class="text-sm text-slate-400 sm:col-span-2">SMTP konfiguráció még nincs betöltve.</div>';
+                return;
+            }
+
+            const rows = [
+                ['SMTP host', config.host || 'nincs megadva'],
+                ['Port', config.port || '—'],
+                ['Titkosítás', config.encryption || 'nincs'],
+                ['Felhasználónév / e-mail', config.username || 'nincs megadva'],
+                ['Jelszó', config.password_status || 'nincs beállítva'],
+                ['Feladó', [config.from_name, config.from_address].filter(Boolean).join(' • ') || 'nincs megadva'],
+            ];
+            target.innerHTML = rows.map(([label, value]) => `
+                <div class="bg-slate-900 border border-slate-700 rounded-xl p-3">
+                    <div class="text-[11px] uppercase tracking-wide text-slate-400">${esc(label)}</div>
+                    <div class="text-sm text-white mt-1 break-all">${esc(String(value || '—'))}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderSmtpResult(result = null, checkedAt = null) {
+            const statusEl = document.getElementById('smtp-diagnostic-status');
+            const detailsEl = document.getElementById('smtp-diagnostic-details');
+            const checkedAtEl = document.getElementById('smtp-last-check-at');
+            if (!statusEl || !detailsEl || !checkedAtEl) return;
+
+            checkedAtEl.innerText = checkedAt ? `Utolsó futás: ${formatDateTime(checkedAt)}` : 'Még nem futott.';
+            if (!result) {
+                statusEl.className = 'text-sm text-slate-400 mb-3';
+                statusEl.innerText = 'Futtassa az SMTP ellenőrzést vagy a próba e-mail küldést.';
+                detailsEl.innerHTML = '';
+                return;
+            }
+
+            statusEl.className = `text-sm mb-3 ${result.success ? 'text-emerald-300' : 'text-rose-300'}`;
+            statusEl.innerText = result.message || (result.success ? 'Sikeres SMTP művelet.' : 'Sikertelen SMTP művelet.');
+            detailsEl.innerHTML = (result.details || []).map(item => `
+                <li class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2">${esc(item)}</li>
+            `).join('');
         }
 
         function renderQuoteReplyHistory(replies = []) {
@@ -1557,6 +1651,14 @@
             state.users = data.users || [];
         }
 
+        async function refreshSmtpStatus() {
+            if (!state.currentUser || state.currentUser.role !== 'admin') return;
+            const data = await apiFetch(API.smtp);
+            state.smtpDiagnostics.config = data.config || null;
+            renderSmtpConfigSummary(state.smtpDiagnostics.config);
+            renderSmtpResult(state.smtpDiagnostics.result, state.smtpDiagnostics.lastCheckedAt);
+        }
+
         async function loadEstimates() {
             if (!state.currentUser) return;
             const data = await apiFetch(API.estimates);
@@ -1606,6 +1708,7 @@
                 state.quotes = [];
                 state.supportChats = [];
                 state.users = [];
+                state.smtpDiagnostics = { config: null, result: null, lastCheckedAt: null };
                 state.quoteFilters.selectedId = null;
                 state.quoteFilters.selectedQuote = null;
                 state.supportChatModal.selectedId = null;
@@ -2290,6 +2393,8 @@
                         </td>
                     </tr>
                 `).join('');
+            } else if (tab === 'smtp') {
+                await refreshSmtpStatus();
             }
         }
 
@@ -2497,6 +2602,53 @@
                 await loadOrders();
                 renderAdminTab('orders');
                 showToast('Rendelés állapota frissítve');
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        async function runSmtpCheck() {
+            try {
+                const data = await apiFetch(API.smtp, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'check' })
+                });
+                state.smtpDiagnostics.config = data.config || state.smtpDiagnostics.config;
+                state.smtpDiagnostics.result = data.result || null;
+                state.smtpDiagnostics.lastCheckedAt = data.meta?.checked_at || new Date().toISOString();
+                renderSmtpConfigSummary(state.smtpDiagnostics.config);
+                renderSmtpResult(state.smtpDiagnostics.result, state.smtpDiagnostics.lastCheckedAt);
+                showToast(data.result?.success ? 'SMTP kapcsolat rendben.' : (data.result?.message || 'SMTP kapcsolat hiba.'));
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        async function sendSmtpTestEmail() {
+            const recipientEmail = document.getElementById('smtp-test-recipient')?.value?.trim() || '';
+            if (!recipientEmail) {
+                showToast('Adja meg a próba e-mail címzettjét.');
+                return;
+            }
+            if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipientEmail)) {
+                showToast('A megadott címzett e-mail cím érvénytelen.');
+                return;
+            }
+            if (!confirm(`Biztosan elküldi a próba e-mailt erre a címre: ${recipientEmail}?`)) {
+                return;
+            }
+
+            try {
+                const data = await apiFetch(API.smtp, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'send_test', recipient_email: recipientEmail, confirm: true })
+                });
+                state.smtpDiagnostics.config = data.config || state.smtpDiagnostics.config;
+                state.smtpDiagnostics.result = data.result || null;
+                state.smtpDiagnostics.lastCheckedAt = data.meta?.checked_at || new Date().toISOString();
+                renderSmtpConfigSummary(state.smtpDiagnostics.config);
+                renderSmtpResult(state.smtpDiagnostics.result, state.smtpDiagnostics.lastCheckedAt);
+                showToast(data.result?.success ? 'Próba e-mail elküldve.' : (data.result?.message || 'Próba e-mail hiba.'));
             } catch (err) {
                 showToast(err.message);
             }
