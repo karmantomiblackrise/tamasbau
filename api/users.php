@@ -80,6 +80,24 @@ if ($method === 'POST') {
         send_json(['ok' => true]);
     }
 
+    if ($action === 'change_password') {
+        $newPassword = (string) ($payload['password'] ?? '');
+        if (mb_strlen($newPassword) < 8) {
+            send_json(['ok' => false, 'error' => 'A jelszónak legalább 8 karakter hosszúnak kell lennie.'], 422);
+        }
+
+        $stmt = db()->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
+        $stmt->execute([password_hash($newPassword, PASSWORD_DEFAULT), $id]);
+        if ($stmt->rowCount() === 0) {
+            $exists = db()->prepare('SELECT id FROM users WHERE id = ? LIMIT 1');
+            $exists->execute([$id]);
+            if (!$exists->fetch()) {
+                send_json(['ok' => false, 'error' => 'Felhasználó nem található.'], 404);
+            }
+        }
+        send_json(['ok' => true]);
+    }
+
     if ($action === 'delete') {
         if ((int) $admin['id'] === $id) {
             send_json(['ok' => false, 'error' => 'Saját admin fiók nem törölhető.'], 422);
