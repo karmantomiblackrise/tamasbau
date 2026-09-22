@@ -587,13 +587,17 @@
                     <i class="fa-solid fa-envelope-open-text mr-2"></i>Beérkezett Ajánlatkérések
                     <span id="tab-quotes-badge" class="ml-2 hidden bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-bold px-2 py-0.5 rounded-full">0</span>
                 </button>
+                <button onclick="switchAdminTab('support')" id="tab-btn-support" class="admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-headset mr-2"></i>Support Chat
+                    <span id="tab-support-badge" class="ml-2 hidden bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[11px] font-bold px-2 py-0.5 rounded-full">0</span>
+                </button>
                 <button onclick="switchAdminTab('users')" id="tab-btn-users" class="admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white">
                     <i class="fa-solid fa-users mr-2"></i>Felhasználók
                 </button>
             </div>
 
             <div id="admin-tab-overview" class="admin-tab-content space-y-8">
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="grid grid-cols-2 lg:grid-cols-6 gap-6">
                     <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
                         <div class="text-xs text-slate-400 font-medium">Összes Árbevétel</div>
                         <div id="kpi-revenue" class="text-2xl font-black text-amber-400 mt-2">0 Ft</div>
@@ -608,6 +612,16 @@
                         <div class="text-xs text-slate-400 font-medium">Új Ajánlatkérések</div>
                         <div id="kpi-quotes-count" class="text-2xl font-black text-sky-400 mt-2">0 db</div>
                         <div class="text-xs text-sky-400 mt-1">Azonnali intézkedést igényel</div>
+                    </div>
+                    <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                        <div class="text-xs text-slate-400 font-medium">Új Support Üzenetek</div>
+                        <div id="kpi-support-unread" class="text-2xl font-black text-amber-300 mt-2">0 db</div>
+                        <div class="text-xs text-amber-300 mt-1">Olvasatlan support inbox</div>
+                    </div>
+                    <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                        <div class="text-xs text-slate-400 font-medium">Nyitott Support Chatek</div>
+                        <div id="kpi-support-open" class="text-2xl font-black text-emerald-300 mt-2">0 db</div>
+                        <div class="text-xs text-emerald-300 mt-1">Aktív ügyfélbeszélgetések</div>
                     </div>
                     <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
                         <div class="text-xs text-slate-400 font-medium">Regisztrált Ügyfelek</div>
@@ -744,6 +758,36 @@
                                 </tr>
                             </thead>
                             <tbody id="admin-quotes-table" class="divide-y divide-slate-700"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="admin-tab-support" class="admin-tab-content hidden space-y-6">
+                <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+                    <div>
+                        <h3 class="text-xl font-bold text-white">Support Chat Inbox</h3>
+                        <p class="text-sm text-slate-400 mt-1">Modern support beszélgetések olvasatlan jelzésekkel, státuszkezeléssel és inline admin válaszokkal.</p>
+                    </div>
+                    <button onclick="loadSupportChats().then(() => renderAdminTab('support'))" class="self-start px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-slate-200 text-sm hover:bg-slate-800">
+                        <i class="fa-solid fa-rotate mr-1.5"></i> Frissítés
+                    </button>
+                </div>
+                <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-300 min-w-[980px]">
+                            <thead class="bg-slate-900 text-xs uppercase text-slate-400">
+                                <tr>
+                                    <th class="p-4">Ügyfél</th>
+                                    <th class="p-4">E-mail</th>
+                                    <th class="p-4">Utolsó üzenet</th>
+                                    <th class="p-4">Státusz</th>
+                                    <th class="p-4">Utolsó aktivitás</th>
+                                    <th class="p-4">Olvasatlan</th>
+                                    <th class="p-4 text-right">Műveletek</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-support-table" class="divide-y divide-slate-700"></tbody>
                         </table>
                     </div>
                 </div>
@@ -1015,6 +1059,49 @@
         </div>
     </div>
 
+    <div id="support-chat-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-5xl rounded-2xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button onclick="closeSupportChatModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl">&times;</button>
+            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
+                <div>
+                    <h3 class="text-xl font-bold text-white">Support Chat beszélgetés</h3>
+                    <p id="support-chat-modal-subtitle" class="text-sm text-slate-400 mt-1"></p>
+                </div>
+                <div class="w-full lg:w-56">
+                    <label class="block text-xs text-slate-300 mb-1">Státusz</label>
+                    <select id="support-chat-modal-status" onchange="handleSupportModalStatusChange(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white"></select>
+                </div>
+            </div>
+            <div id="support-chat-modal-details" class="grid md:grid-cols-2 gap-4 mb-6"></div>
+            <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 mb-6">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                    <div class="text-xs uppercase tracking-wide text-slate-400">Konverzáció</div>
+                    <span id="support-chat-modal-count" class="text-xs text-slate-400"></span>
+                </div>
+                <div id="support-chat-modal-messages" class="space-y-3 max-h-[44vh] overflow-y-auto pr-1"></div>
+            </div>
+            <form onsubmit="handleSupportAdminReplySubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">Admin válasz</label>
+                    <textarea id="support-chat-modal-reply" rows="5" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm" placeholder="Írjon professzionális választ az ügyfélnek..."></textarea>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-3 justify-end">
+                    <button type="button" onclick="closeSupportChatModal()" class="px-4 py-3 rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-800">Bezárás</button>
+                    <button type="submit" class="px-4 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold">Válasz elküldése</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="support-widget-root" class="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3">
+        <div id="support-widget-panel" class="hidden">
+            <div id="support-widget-card" class="bg-slate-900/95 border border-slate-700 shadow-2xl backdrop-blur-xl rounded-3xl overflow-hidden flex flex-col"></div>
+        </div>
+        <button onclick="toggleSupportWidget()" id="support-widget-toggle" class="h-16 w-16 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 shadow-2xl flex items-center justify-center border border-amber-300/50 hover:scale-105 transition-transform">
+            <i class="fa-solid fa-headset text-2xl"></i>
+        </button>
+    </div>
+
     <div id="toast-notification" class="fixed bottom-5 right-5 bg-amber-500 text-slate-950 px-5 py-3 rounded-xl font-bold shadow-2xl transition-all duration-300 transform translate-y-20 opacity-0 z-50 flex items-center space-x-2">
         <i class="fa-solid fa-circle-check text-lg"></i>
         <span id="toast-message">Sikeres művelet!</span>
@@ -1068,13 +1155,16 @@
             products: 'api/products.php',
             orders: 'api/orders.php',
             quotes: 'api/quotes.php',
-            estimates: 'api/estimates.php'
+            estimates: 'api/estimates.php',
+            supportPublic: 'api/support.php',
+            supportAdmin: 'api/support-chats.php'
         };
 
         let state = {
             products: [],
             orders: [],
             quotes: [],
+            supportChats: [],
             users: [],
             categories: [],
             cart: JSON.parse(localStorage.getItem('tb_cart') || '[]'),
@@ -1083,6 +1173,16 @@
             estimates: [],
             activeShopCategoryId: 'all',
             quoteFilters: { status: 'all', search: '', selectedId: null, selectedQuote: null },
+            supportChatModal: { selectedId: null, selectedChat: null },
+            supportPublic: {
+                guestName: localStorage.getItem('tb_support_guest_name') || '',
+                guestEmail: localStorage.getItem('tb_support_guest_email') || '',
+                guestChatId: Number(localStorage.getItem('tb_support_guest_chat_id') || 0) || null,
+                currentChat: null,
+                widgetOpen: false,
+                widgetMaximized: false,
+                loading: false
+            },
             calcData: { area: 70, wiringType: 'full', alarmQty: 1, cameraQty: 2, intercom: false, total: 0 }
         };
 
@@ -1113,6 +1213,54 @@
             return map[status] || { label: String(status || 'ismeretlen'), className: 'bg-slate-500/15 text-slate-300 border border-slate-500/30' };
         }
 
+        function getSupportStatusMeta(status) {
+            const map = {
+                new: { label: 'Új', className: 'bg-rose-500/15 text-rose-300 border border-rose-500/30' },
+                open: { label: 'Nyitott', className: 'bg-sky-500/15 text-sky-300 border border-sky-500/30' },
+                resolved: { label: 'Megoldott', className: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' }
+            };
+            return map[status] || { label: String(status || 'ismeretlen'), className: 'bg-slate-500/15 text-slate-300 border border-slate-500/30' };
+        }
+
+        function getSupportCustomerContext() {
+            if (state.currentUser) {
+                return {
+                    name: state.currentUser.name || '',
+                    email: state.currentUser.email || '',
+                    chatId: state.supportPublic.currentChat?.id || null,
+                    authenticated: true
+                };
+            }
+
+            return {
+                name: state.supportPublic.guestName || '',
+                email: state.supportPublic.guestEmail || '',
+                chatId: state.supportPublic.guestChatId || null,
+                authenticated: false
+            };
+        }
+
+        function persistGuestSupportIdentity(name, email, chatId) {
+            state.supportPublic.guestName = name || '';
+            state.supportPublic.guestEmail = email || '';
+            state.supportPublic.guestChatId = chatId || null;
+            localStorage.setItem('tb_support_guest_name', state.supportPublic.guestName);
+            localStorage.setItem('tb_support_guest_email', state.supportPublic.guestEmail);
+            if (state.supportPublic.guestChatId) {
+                localStorage.setItem('tb_support_guest_chat_id', String(state.supportPublic.guestChatId));
+            } else {
+                localStorage.removeItem('tb_support_guest_chat_id');
+            }
+        }
+
+        function getSupportUnreadMessageCount() {
+            return state.supportChats.reduce((sum, chat) => sum + Number(chat.unread_count || 0), 0);
+        }
+
+        function getSupportOpenChatCount() {
+            return state.supportChats.filter(chat => chat.status !== 'resolved').length;
+        }
+
         function getFilteredQuotes() {
             const status = state.quoteFilters.status || 'all';
             const term = (state.quoteFilters.search || '').trim().toLowerCase();
@@ -1133,6 +1281,21 @@
             if (badge) {
                 badge.innerText = String(newCount);
                 badge.classList.toggle('hidden', newCount === 0);
+            }
+        }
+
+        function updateSupportIndicators() {
+            const unreadCount = getSupportUnreadMessageCount();
+            const openCount = getSupportOpenChatCount();
+            const unreadKpi = document.getElementById('kpi-support-unread');
+            const openKpi = document.getElementById('kpi-support-open');
+            const badge = document.getElementById('tab-support-badge');
+
+            if (unreadKpi) unreadKpi.innerText = unreadCount + ' db';
+            if (openKpi) openKpi.innerText = openCount + ' db';
+            if (badge) {
+                badge.innerText = String(unreadCount);
+                badge.classList.toggle('hidden', unreadCount === 0);
             }
         }
 
@@ -1184,6 +1347,141 @@
             `;
             document.getElementById('quote-modal-dev-info').innerText = '';
             renderQuoteReplyHistory(quote.replies || []);
+        }
+
+        function renderSupportMessages(messages = [], perspective = 'customer') {
+            return messages.map(message => {
+                const isOwn = perspective === 'customer'
+                    ? message.sender_type === 'customer'
+                    : message.sender_type === 'admin';
+                const wrapperClass = isOwn ? 'justify-end' : 'justify-start';
+                const bubbleClass = isOwn
+                    ? 'bg-amber-500 text-slate-950 border border-amber-300/60'
+                    : 'bg-slate-900 text-slate-100 border border-slate-700';
+                const label = message.sender_type === 'admin'
+                    ? (message.sender_name || 'Support admin')
+                    : (message.sender_name || 'Ügyfél');
+
+                return `
+                    <div class="flex ${wrapperClass}">
+                        <div class="max-w-[88%] rounded-2xl px-4 py-3 shadow-lg ${bubbleClass}">
+                            <div class="flex items-center justify-between gap-4 mb-1">
+                                <span class="text-[11px] font-bold uppercase tracking-wide ${isOwn ? 'text-slate-800/80' : 'text-slate-400'}">${esc(label)}</span>
+                                <span class="text-[11px] ${isOwn ? 'text-slate-800/80' : 'text-slate-500'}">${formatDateTime(message.created_at)}</span>
+                            </div>
+                            <p class="text-sm whitespace-pre-line break-words">${esc(message.message)}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderSupportWidget() {
+            const panel = document.getElementById('support-widget-panel');
+            const card = document.getElementById('support-widget-card');
+            if (!panel || !card) return;
+
+            const chat = state.supportPublic.currentChat;
+            const context = getSupportCustomerContext();
+            const statusMeta = getSupportStatusMeta(chat?.status || 'open');
+            panel.classList.toggle('hidden', !state.supportPublic.widgetOpen);
+
+            card.className = `bg-slate-900/95 border border-slate-700 shadow-2xl backdrop-blur-xl rounded-3xl overflow-hidden flex flex-col transition-all duration-200 ${state.supportPublic.widgetMaximized ? 'w-[min(32rem,calc(100vw-1.5rem))] h-[80vh]' : 'w-[min(24rem,calc(100vw-1.5rem))] h-[34rem]'}`;
+            card.innerHTML = `
+                <div class="px-5 py-4 border-b border-slate-700 bg-gradient-to-r from-slate-900 via-slate-900 to-amber-500/10">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <div class="flex items-center gap-2 text-white font-bold">
+                                <i class="fa-solid fa-headset text-amber-400"></i>
+                                <span>Tamás Bau Support</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1">Gyors ügyféltámogatás közvetlenül a weboldalról.</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="toggleSupportWidgetSize()" class="h-9 w-9 rounded-full border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800">
+                                <i class="fa-solid ${state.supportPublic.widgetMaximized ? 'fa-compress' : 'fa-expand'}"></i>
+                            </button>
+                            <button type="button" onclick="toggleSupportWidget(false)" class="h-9 w-9 rounded-full border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-3 flex items-center justify-between gap-3">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${statusMeta.className}">
+                            ${chat ? `Chat #${chat.id} • ${statusMeta.label}` : 'Új beszélgetés'}
+                        </span>
+                        <span class="text-xs text-slate-400">${chat?.messages?.length || 0} üzenet</span>
+                    </div>
+                </div>
+                <div class="px-5 pt-3 text-xs text-slate-400" id="support-widget-email-note">
+                    ${context.authenticated ? 'Bejelentkezett profilból küldve. A support automatikusan az Ön fiókadatait használja.' : 'Az e-mail cím alapján a saját support előzményeit is vissza tudja tölteni.'}
+                </div>
+                <div class="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-3 bg-slate-950/30" id="support-widget-messages">
+                    ${state.supportPublic.loading
+                        ? '<div class="text-sm text-slate-400">Support beszélgetés betöltése...</div>'
+                        : (chat?.messages?.length
+                            ? renderSupportMessages(chat.messages, 'customer')
+                            : '<div class="text-sm text-slate-400">Írjon nekünk üzenetet, és a válaszokat itt fogja látni.</div>')}
+                </div>
+                <form onsubmit="handleSupportWidgetSubmit(event)" class="p-4 border-t border-slate-700 bg-slate-900 space-y-3">
+                    <div class="grid sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-slate-300 mb-1">Név</label>
+                            <input type="text" id="support-widget-name" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white ${context.authenticated ? 'opacity-80' : ''}" placeholder="Teljes név" value="${esc(context.name)}" ${context.authenticated ? 'readonly' : ''}>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-300 mb-1">E-mail *</label>
+                            <input type="email" id="support-widget-email" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white ${context.authenticated ? 'opacity-80' : ''}" placeholder="nev@pelda.hu" value="${esc(context.email)}" ${context.authenticated ? 'readonly' : ''}>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-300 mb-1">Üzenet *</label>
+                        <textarea id="support-widget-message" rows="3" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white" placeholder="Miben segíthetünk?"></textarea>
+                    </div>
+                    <div class="flex items-center justify-between gap-3">
+                        <button type="button" onclick="loadPublicSupportChat(true)" class="px-3 py-2 rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-800 text-sm">
+                            <i class="fa-solid fa-rotate mr-1"></i> Frissítés
+                        </button>
+                        <button type="submit" class="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-sm">
+                            Üzenet küldése
+                        </button>
+                    </div>
+                </form>
+            `;
+        }
+
+        function renderSupportChatModal() {
+            const chat = state.supportChatModal.selectedChat;
+            if (!chat) return;
+
+            const statusMeta = getSupportStatusMeta(chat.status);
+            document.getElementById('support-chat-modal-subtitle').innerText = `${chat.user_name || 'Vendég érdeklődő'} • #${chat.id}`;
+            document.getElementById('support-chat-modal-status').innerHTML = ['new', 'open', 'resolved'].map(status => `
+                <option value="${status}" ${status === chat.status ? 'selected' : ''}>${getSupportStatusMeta(status).label}</option>
+            `).join('');
+            document.getElementById('support-chat-modal-count').innerText = `${chat.messages?.length || 0} üzenet`;
+            document.getElementById('support-chat-modal-details').innerHTML = `
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4">
+                    <div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Ügyfél adatok</div>
+                    <div class="space-y-2 text-sm">
+                        <div><span class="text-slate-400">Név:</span> <span class="text-white font-semibold">${esc(chat.user_name || 'Vendég')}</span></div>
+                        <div><span class="text-slate-400">E-mail:</span> <span class="text-white">${esc(chat.user_email || '—')}</span></div>
+                        <div><span class="text-slate-400">Létrehozva:</span> <span class="text-white">${formatDateTime(chat.created_at)}</span></div>
+                    </div>
+                </div>
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4">
+                    <div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Inbox állapot</div>
+                    <div class="space-y-2 text-sm">
+                        <div><span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${statusMeta.className}">${statusMeta.label}</span></div>
+                        <div><span class="text-slate-400">Utolsó aktivitás:</span> <span class="text-white">${formatDateTime(chat.last_message_at)}</span></div>
+                        <div><span class="text-slate-400">Olvasatlan:</span> <span class="text-white">${Number(chat.unread_count || 0)} db</span></div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('support-chat-modal-messages').innerHTML = chat.messages?.length
+                ? renderSupportMessages(chat.messages, 'admin')
+                : '<p class="text-sm text-slate-500">Még nincs mentett support üzenet.</p>';
+            document.getElementById('support-chat-modal-reply').value = '';
         }
 
         async function apiFetch(url, options = {}) {
@@ -1246,6 +1544,13 @@
             updateQuoteIndicators();
         }
 
+        async function loadSupportChats() {
+            if (!state.currentUser || state.currentUser.role !== 'admin') return;
+            const data = await apiFetch(API.supportAdmin);
+            state.supportChats = data.chats || [];
+            updateSupportIndicators();
+        }
+
         async function loadUsers() {
             if (!state.currentUser || state.currentUser.role !== 'admin') return;
             const data = await apiFetch(API.users);
@@ -1258,25 +1563,59 @@
             state.estimates = data.estimates || [];
         }
 
+        async function loadPublicSupportChat(silent = false) {
+            const context = getSupportCustomerContext();
+            if (!context.email) {
+                state.supportPublic.currentChat = null;
+                state.supportPublic.loading = false;
+                renderSupportWidget();
+                return;
+            }
+
+            state.supportPublic.loading = true;
+            renderSupportWidget();
+            try {
+                const params = new URLSearchParams({ email: context.email });
+                if (context.chatId) params.set('chat_id', String(context.chatId));
+                const data = await apiFetch(`${API.supportPublic}?${params.toString()}`);
+                state.supportPublic.currentChat = data.chat || null;
+                if (data.chat && !context.authenticated) {
+                    persistGuestSupportIdentity(data.chat.user_name || context.name, data.chat.user_email || context.email, data.chat.id);
+                }
+            } catch (err) {
+                state.supportPublic.currentChat = null;
+                if (!silent) showToast(err.message);
+            } finally {
+                state.supportPublic.loading = false;
+                renderSupportWidget();
+            }
+        }
+
         async function refreshData() {
             await loadUserSession();
+            await loadPublicSupportChat(true);
             await Promise.all([loadCategories(), loadProducts()]);
             if (state.currentUser) {
                 await Promise.all([loadOrders(), loadEstimates()]);
                 if (state.currentUser.role === 'admin') {
-                    await Promise.all([loadQuotes(), loadUsers()]);
+                    await Promise.all([loadQuotes(), loadSupportChats(), loadUsers()]);
                 }
             } else {
                 state.orders = [];
                 state.estimates = [];
                 state.quotes = [];
+                state.supportChats = [];
                 state.users = [];
                 state.quoteFilters.selectedId = null;
                 state.quoteFilters.selectedQuote = null;
+                state.supportChatModal.selectedId = null;
+                state.supportChatModal.selectedChat = null;
             }
             updateAuthUI();
             updateCartBadge();
             updateQuoteIndicators();
+            updateSupportIndicators();
+            renderSupportWidget();
         }
 
         function showPage(pageId) {
@@ -1702,11 +2041,17 @@
             state.estimates = [];
             state.users = [];
             state.quotes = [];
+            state.supportChats = [];
             state.quoteFilters.selectedId = null;
             state.quoteFilters.selectedQuote = null;
+            state.supportChatModal.selectedId = null;
+            state.supportChatModal.selectedChat = null;
+            state.supportPublic.currentChat = null;
             localStorage.removeItem('tb_csrf');
+            await loadPublicSupportChat(true);
             updateAuthUI();
             updateQuoteIndicators();
+            updateSupportIndicators();
             showPage('home');
             showToast('Kijelentkezve.');
         }
@@ -1813,12 +2158,14 @@
             if (tab === 'overview') {
                 if (!state.orders.length) await loadOrders();
                 await loadQuotes();
+                await loadSupportChats();
                 if (!state.users.length) await loadUsers();
                 if (!state.products.length) await loadProducts();
                 const totalRev = state.orders.reduce((sum, o) => sum + Number(o.total || 0), 0);
                 document.getElementById('kpi-revenue').innerText = totalRev.toLocaleString('hu-HU') + ' Ft';
                 document.getElementById('kpi-orders-count').innerText = state.orders.length + ' db';
                 updateQuoteIndicators();
+                updateSupportIndicators();
                 document.getElementById('kpi-users-count').innerText = state.users.filter(u => Number(u.is_active) === 1).length + ' fő';
                 renderAdminChart();
             } else if (tab === 'products') {
@@ -1894,6 +2241,33 @@
                         </td>
                     </tr>`;
                 }).join('') || '<tr><td colspan="8" class="p-6 text-center text-slate-500">Nincs a szűrésnek megfelelő ajánlatkérés.</td></tr>';
+            } else if (tab === 'support') {
+                if (!state.supportChats.length) await loadSupportChats();
+                const table = document.getElementById('admin-support-table');
+                table.innerHTML = state.supportChats.map(chat => {
+                    const statusMeta = getSupportStatusMeta(chat.status);
+                    const unreadCount = Number(chat.unread_count || 0);
+                    const customerName = chat.user_name || 'Vendég érdeklődő';
+                    return `
+                        <tr class="${unreadCount > 0 ? 'bg-amber-500/5' : ''} hover:bg-slate-700/50">
+                            <td class="p-4">
+                                <div class="flex items-center gap-2">
+                                    <div class="font-bold text-white">${esc(customerName)}</div>
+                                    ${unreadCount > 0 ? '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">ÚJ</span>' : ''}
+                                </div>
+                            </td>
+                            <td class="p-4 text-xs text-slate-300">${esc(chat.user_email || '—')}</td>
+                            <td class="p-4 text-xs text-slate-400 max-w-[280px] truncate">${esc(chat.last_message || '—')}</td>
+                            <td class="p-4"><span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${statusMeta.className}">${statusMeta.label}</span></td>
+                            <td class="p-4 text-xs text-slate-400">${formatDateTime(chat.last_message_at)}</td>
+                            <td class="p-4"><span class="inline-flex items-center justify-center min-w-10 px-2 py-1 rounded-full text-xs font-bold ${unreadCount > 0 ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30' : 'bg-slate-900 text-slate-400 border border-slate-700'}">${unreadCount}</span></td>
+                            <td class="p-4 text-right space-x-2">
+                                <button onclick="openSupportChatModal(${chat.id})" class="text-xs bg-sky-500/15 hover:bg-sky-500/25 px-2.5 py-1.5 rounded text-sky-200 border border-sky-500/25">Megnyitás</button>
+                                <select onchange="updateSupportChatStatus(${chat.id}, this.value)" class="bg-slate-700 text-xs rounded px-2 py-1 border border-slate-600">${['new', 'open', 'resolved'].map(status => `<option value="${status}" ${status === chat.status ? 'selected' : ''}>${getSupportStatusMeta(status).label}</option>`).join('')}</select>
+                            </td>
+                        </tr>
+                    `;
+                }).join('') || '<tr><td colspan="7" class="p-6 text-center text-slate-500">Még nincs support beszélgetés.</td></tr>';
             } else if (tab === 'users') {
                 if (!state.users.length) await loadUsers();
                 const table = document.getElementById('admin-users-table');
@@ -2217,6 +2591,140 @@
                 }
                 await renderAdminTab('quotes');
                 showToast('Ajánlatkérés törölve');
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        function toggleSupportWidget(nextState = null) {
+            state.supportPublic.widgetOpen = typeof nextState === 'boolean' ? nextState : !state.supportPublic.widgetOpen;
+            renderSupportWidget();
+            if (state.supportPublic.widgetOpen) {
+                loadPublicSupportChat(true);
+            }
+        }
+
+        function toggleSupportWidgetSize() {
+            state.supportPublic.widgetMaximized = !state.supportPublic.widgetMaximized;
+            renderSupportWidget();
+        }
+
+        async function handleSupportWidgetSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('support-widget-name')?.value?.trim() || '';
+            const email = document.getElementById('support-widget-email')?.value?.trim() || '';
+            const message = document.getElementById('support-widget-message')?.value?.trim() || '';
+            const chatId = state.supportPublic.currentChat?.id || state.supportPublic.guestChatId || null;
+
+            if (!email || !message) {
+                showToast('Az e-mail cím és az üzenet megadása kötelező.');
+                return;
+            }
+
+            try {
+                const data = await apiFetch(API.supportPublic, {
+                    method: 'POST',
+                    body: JSON.stringify({ name, email, message, chat_id: chatId })
+                });
+                state.supportPublic.currentChat = data.chat || null;
+                if (!state.currentUser && data.chat) {
+                    persistGuestSupportIdentity(data.chat.user_name || name, data.chat.user_email || email, data.chat.id);
+                }
+                document.getElementById('support-widget-message').value = '';
+                renderSupportWidget();
+                if (state.currentUser?.role === 'admin') {
+                    await loadSupportChats();
+                }
+                showToast('Support üzenet sikeresen elküldve.');
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        async function openSupportChatModal(id) {
+            try {
+                const data = await apiFetch(`${API.supportAdmin}?id=${encodeURIComponent(id)}`);
+                state.supportChatModal.selectedId = id;
+                state.supportChatModal.selectedChat = data.chat || null;
+                renderSupportChatModal();
+                document.getElementById('support-chat-modal').classList.remove('hidden');
+
+                if (Number(data.chat?.unread_count || 0) > 0) {
+                    await markSupportChatRead(id, false);
+                    await loadSupportChats();
+                    const refreshed = await apiFetch(`${API.supportAdmin}?id=${encodeURIComponent(id)}`);
+                    state.supportChatModal.selectedChat = refreshed.chat || state.supportChatModal.selectedChat;
+                    renderSupportChatModal();
+                }
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        function closeSupportChatModal() {
+            document.getElementById('support-chat-modal').classList.add('hidden');
+            state.supportChatModal.selectedId = null;
+            state.supportChatModal.selectedChat = null;
+        }
+
+        async function markSupportChatRead(id, rerender = true) {
+            try {
+                await apiFetch(API.supportAdmin, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'mark_read', id })
+                });
+                await loadSupportChats();
+                if (rerender) await renderAdminTab('support');
+                return true;
+            } catch (err) {
+                showToast(err.message);
+                return false;
+            }
+        }
+
+        async function updateSupportChatStatus(id, status, rerender = true) {
+            try {
+                const data = await apiFetch(API.supportAdmin, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'update_status', id, status })
+                });
+                await loadSupportChats();
+                if (state.supportChatModal.selectedId === id) {
+                    state.supportChatModal.selectedChat = data.chat || state.supportChatModal.selectedChat;
+                    renderSupportChatModal();
+                }
+                if (rerender) await renderAdminTab('support');
+                showToast('Support chat státusza frissítve.');
+                return true;
+            } catch (err) {
+                showToast(err.message);
+                return false;
+            }
+        }
+
+        async function handleSupportModalStatusChange(status) {
+            const chatId = state.supportChatModal.selectedId;
+            if (!chatId) return;
+            await updateSupportChatStatus(chatId, status, false);
+        }
+
+        async function handleSupportAdminReplySubmit(e) {
+            e.preventDefault();
+            const chatId = state.supportChatModal.selectedId;
+            const message = document.getElementById('support-chat-modal-reply').value.trim();
+            const status = document.getElementById('support-chat-modal-status').value;
+            if (!chatId || !message) return;
+
+            try {
+                const data = await apiFetch(API.supportAdmin, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'reply', id: chatId, message, status })
+                });
+                state.supportChatModal.selectedChat = data.chat || state.supportChatModal.selectedChat;
+                await loadSupportChats();
+                renderSupportChatModal();
+                await renderAdminTab('support');
+                showToast('Support válasz sikeresen elküldve.');
             } catch (err) {
                 showToast(err.message);
             }

@@ -67,11 +67,13 @@ A séma már tartalmazza:
 - `quotes` tábla új státuszokkal (`new`, `in_progress`, `answered`, `closed`)
 - `quotes.admin_reply`, `quotes.replied_at`
 - `quote_replies` előzménytábla indexekkel és idegen kulcsokkal
+- `support_chats` és `support_messages` táblák indexelt support inbox struktúrával
 
 ### Meglévő adatbázis frissítése (újrafuttatható migráció)
 
 ```bash
 mysql -u root -p tamasbau < database/migrations/20260922_quote_reply_system.sql
+mysql -u root -p tamasbau < database/migrations/20260922_support_chat_system.sql
 ```
 
 A migráció ellenőrzi a mezők és indexek meglétét, ezért meglévő környezeten ismételten is futtatható.
@@ -162,22 +164,59 @@ Az admin **Ajánlatkérések** tabon elérhető:
 - Production környezetben e-mail tartalom nem szivárog vissza API válaszban.
 - Ha az e-mail küldés hibás, az API nem ad hamis sikert, és a reply mentés rollbackelődik.
 
-## 7) Termékképek és kategóriák
+## 7) Support chat rendszer
+
+### Publikus chat widget
+
+- A jobb alsó sarokban lebegő support widget jelenik meg.
+- Vendégként is használható, de bejelentkezett felhasználónál a widget automatikusan a profil `name` + `email` adatait használja.
+- Kötelező mezők: e-mail cím és üzenet.
+- A widget az e-mail cím alapján visszatölti a legutóbbi support beszélgetést és annak admin válaszait.
+- A kliensoldali chat renderelés minden support szöveget escape-elve ír a DOM-ba.
+
+### Admin support inbox
+
+Az admin **Support Chat** tabon elérhető:
+
+- beszélgetéslista ügyfél névvel, e-maillel, státusszal, utolsó aktivitással és olvasatlan számlálóval
+- modern modal nézet bal/jobb oldali üzenet buborékokkal
+- admin válasz írása, státuszváltás (`new`, `open`, `resolved`)
+- automatikus olvasatlannak-jelölt support üzenetkezelés
+- overview KPI-kártyák:
+  - `Új Support Üzenetek`
+  - `Nyitott Support Chatek`
+
+### Support API-k
+
+Mivel a projekt meglévő szerkezete file-alapú PHP endpointokat használ, a support rendszer ehhez igazodik:
+
+- `POST api/support.php` – publikus új support üzenet / chat létrehozása vagy meglévő beszélgetéshez új ügyfélüzenet mentése
+- `GET api/support.php?email=...&chat_id=...` – publikus beszélgetés lekérése
+- `GET api/support-chats.php` – admin support chat lista
+- `GET api/support-chats.php?id={ID}` – admin support chat részletek + üzenetek
+- `POST api/support-chats.php` (`action=reply`) – admin válasz küldése
+- `POST api/support-chats.php` (`action=mark_read`) – olvasatlan jelölés törlése
+- `POST api/support-chats.php` (`action=update_status`) – státuszfrissítés
+
+Minden új SQL művelet prepared statementet használ.
+
+## 8) Termékképek és kategóriák
 
 - `products.image_url` mező támogatott az admin termék CRUD felületen
 - hibás vagy hiányzó kép esetén ikon fallback látszik
 - a kategóriák korlátlan mélységűek (`categories.parent_id` önhivatkozó FK)
 - a `GET api/categories.php` flat listát és rekurzív `category_tree` választ is ad
 
-## 8) Biztonsági megjegyzések
+## 9) Biztonsági megjegyzések
 
 - Az admin műveletek szerveroldali jogosultság-ellenőrzéssel védettek (`require_admin()`).
 - A session-alapú módosító műveletekhez CSRF token szükséges (`X-CSRF-Token`).
 - Az e-mail címek validálása szerveroldalon történik.
 - A frontend renderelés escape-eli az ügyfél- és adminszövegeket.
 - SMTP jelszót vagy teljes éles konfigurációt ne naplózz, ne commitolj és ne jeleníts meg a kliensoldalon.
+- A support admin műveletek kizárólag admin sessionnel érhetők el.
 
-## 9) API végpontok
+## 10) API végpontok
 
 - `api/auth.php` – regisztráció, login, logout, aktuális user
 - `api/password-reset.php` – elfelejtett jelszó token kérés / ellenőrzés / reset
@@ -186,4 +225,6 @@ Az admin **Ajánlatkérések** tabon elérhető:
 - `api/products.php` – termék CRUD
 - `api/orders.php` – checkout + rendelés lista + státusz frissítés
 - `api/quotes.php` – ajánlatkérés létrehozás + admin válaszkezelés
+- `api/support.php` – publikus support chat létrehozás + ügyfél előzmények lekérése
+- `api/support-chats.php` – admin support inbox + részletek + reply + mark-read + státuszfrissítés
 - `api/estimates.php` – bejelentkezett user kalkulációi
