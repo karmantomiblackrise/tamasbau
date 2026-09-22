@@ -1,0 +1,9 @@
+{
+    "name": "karmantomiblackrise/tamasbau",
+    "description": "Tamás Bau Kft. PHP/MySQL webalkalmazás",
+    "type": "project",
+    "require": {
+        "php": ">=8.0",
+        "phpmailer/phpmailer": "^6.12"
+    }
+}

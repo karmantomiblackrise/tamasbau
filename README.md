@@ -1,43 +1,96 @@
 # Tamás Bau Kft. Webapp (PHP + MySQL)
 
-Ez a projekt a korábbi statikus `index.html` verzió továbbfejlesztett változata, ahol az adatok valódi MySQL adatbázisban vannak tárolva, a frontend pedig `fetch()` hívásokkal kommunikál a PHP API-val.
+Ez a projekt a korábbi statikus `index.html` verzió továbbfejlesztett, PHP/MySQL backendes változata. A frontend `fetch()` hívásokkal kommunikál a PHP API-val, az adminpanel pedig valós adatbázisból kezeli a felhasználókat, termékeket, kategóriákat, rendeléseket és ajánlatkéréseket.
 
-## 1) Adatbázis létrehozása
+## 1) Telepítés
 
-1. Hozz létre egy MySQL adatbázist (alapértelmezett név: `tamasbau`).
-2. Importáld a sémát és seed adatokat:
+### Composer függőségek
 
 ```bash
-mysql -u root -p < database/schema.sql
+composer install
 ```
 
-## 2) API konfiguráció (`api/config.php`)
+A projekt PHPMailer támogatással működik, ha a `vendor/` könyvtár elérhető. Composer nélküli környezetben a backend beépített SMTP socket fallbacket használ; ha SMTP sincs beállítva és `APP_ENV=development`, akkor a kimenő e-mailek biztonságos fejlesztői logba kerülnek.
 
-Az API környezeti változókból olvassa a DB kapcsolatot:
+### `.env` létrehozása
+
+```bash
+cp .env.example .env
+```
+
+Ezután állítsd be a saját adatbázis- és SMTP-adataidat.
+
+## 2) Környezeti változók
+
+### Alkalmazás
+
+- `APP_ENV` – `development` vagy `production`
+- `TB_APP_NAME` – alkalmazás / feladó név
+- `TB_APP_URL` – helyi vagy éles URL (pl. `http://localhost:8000`)
+
+### Adatbázis
 
 - `TB_DB_HOST` (alapértelmezett: `127.0.0.1`)
 - `TB_DB_PORT` (alapértelmezett: `3306`)
 - `TB_DB_NAME` (alapértelmezett: `tamasbau`)
 - `TB_DB_USER` (alapértelmezett: `root`)
 - `TB_DB_PASS` (alapértelmezett: üres)
-- `APP_ENV` (`development` esetén az elfelejtett jelszó token visszaadásra kerül API válaszban és logba)
 
-Példa futtatás exporttal:
+### SMTP / e-mail
+
+- `TB_MAIL_HOST`
+- `TB_MAIL_PORT`
+- `TB_MAIL_USERNAME`
+- `TB_MAIL_PASSWORD`
+- `TB_MAIL_ENCRYPTION` (`tls`, `ssl` vagy üres)
+- `TB_MAIL_AUTH` (`true` / `false`)
+- `TB_MAIL_FROM_ADDRESS`
+- `TB_MAIL_FROM_NAME`
+- `TB_MAIL_TIMEOUT`
+- `TB_MAIL_EHLO_DOMAIN`
+- `TB_DEV_MAIL_LOG` (fejlesztői log fájl, alapból `logs/mail-dev.log`)
+
+> Fontos: SMTP jelszót, `.env` fájlt vagy valódi szerverhozzáférést ne commitolj a repository-ba.
+
+## 3) Adatbázis létrehozása és migráció
+
+### Friss telepítés (destruktív schema + seed)
+
+A `database/schema.sql` **teljesen újraépíti** a demo adatbázist és seed adatokat tölt be:
 
 ```bash
-export TB_DB_HOST=127.0.0.1
-export TB_DB_PORT=3306
-export TB_DB_NAME=tamasbau
-export TB_DB_USER=root
-export TB_DB_PASS=secret
-export APP_ENV=development
+mysql -u root -p < database/schema.sql
 ```
 
-## 3) Demo admin belépés
+A séma már tartalmazza:
+
+- `quotes` tábla új státuszokkal (`new`, `in_progress`, `answered`, `closed`)
+- `quotes.admin_reply`, `quotes.replied_at`
+- `quote_replies` előzménytábla indexekkel és idegen kulcsokkal
+
+### Meglévő adatbázis frissítése (újrafuttatható migráció)
+
+```bash
+mysql -u root -p tamasbau < database/migrations/20260922_quote_reply_system.sql
+```
+
+A migráció ellenőrzi a mezők és indexek meglétét, ezért meglévő környezeten ismételten is futtatható.
+
+## 4) Helyi futtatás
+
+A repository gyökeréből indítsd:
+
+```bash
+php -S localhost:8000
+```
+
+Ezután nyisd meg: `http://localhost:8000`
+
+## 5) Admin és auth funkciók
+
+### Demo admin belépés
 
 - E-mail: `admin@tamasbau.hu`
-
-A login modalban található **Gyors belépés Demo Adminisztrátorként** gomb az admin e-maillel indít belépést, majd jelszó bekérése után hitelesít a backend felé.
 
 Az első bejelentkezés előtt állíts be saját admin jelszót (példa SQL):
 
@@ -48,62 +101,89 @@ SET password_hash = '$2y$10$A_SAJAT_HASHED_JELSZAVAD',
 WHERE email = 'admin@tamasbau.hu';
 ```
 
-A hash előállításához használható parancs:
+Hash készítése:
 
 ```bash
 php -r "echo password_hash('SajatErősJelszo123!', PASSWORD_DEFAULT), PHP_EOL;"
 ```
 
-## 4) Elfelejtett jelszó flow
+### Elfelejtett jelszó flow
 
-- Login modalban elérhető az **Elfelejtette a jelszavát?** funkció.
 - API végpont: `api/password-reset.php`
-  - `action=request` + `email` → reset token létrehozás (`password_resets` tábla, hash-elt token, 1 órás lejárat)
-  - `action=validate` + `token` → token ellenőrzés
-  - `action=reset` + `token` + `password` → új jelszó beállítás (min. 8 karakter)
-- A token egyszer használatos: reset után `used_at` mező beállításra kerül.
-- Fejlesztői módban (`APP_ENV=development`) a token:
-  - API válaszban (`dev.token`, `dev.reset_link`)
-  - illetve `logs/password-reset.log` fájlban is megjelenik.
+- `action=request` + `email` → token generálás
+- `action=validate` + `token` → token ellenőrzés
+- `action=reset` + `token` + `password` → új jelszó beállítás
 
-## 5) Termékképek
+Fejlesztői módban (`APP_ENV=development`) a reset token:
 
-`products.image_url` mező támogatott az admin termék CRUD felületen.
+- API válaszban is visszajelenik (`dev.token`, `dev.reset_link`)
+- valamint `logs/password-reset.log` fájlba kerül
 
-- Webshop kártyán és admin listában kép jelenik meg.
-- Hibás vagy hiányzó URL esetén automatikus ikon fallback látható.
-- A `database/schema.sql` seed adatok működő publikus képlinkeket tartalmaznak.
+## 6) Ajánlatkérés-válasz rendszer
 
-## 6) Korlátlan mélységű kategóriahierarchia
+### Publikus ajánlatkérés
 
-- A `categories.parent_id` önhivatkozó idegen kulcs, így tetszőleges mélységű fa építhető.
-- A seed adatok tartalmaznak 3+ szintű példát:
-  - `Villanyszerelés / Kismegszakítók / Lakossági kismegszakítók`
-  - `Villanyszerelés / Fi-relék / 1 fázisú Fi-relék`
-- Törlési stratégia: a kategória nem törölhető, ha van közvetlen gyermeke vagy hozzá (illetve bármely leszármazottjához) termék tartozik. Az adatbázis szinten is `ON DELETE RESTRICT` védi ezt.
-- Ciklikus hierarchia tiltott: kategória szerkesztésnél nem állítható saját magára vagy saját leszármazottjára.
-- A `GET api/categories.php` válasz visszaadja:
-  - `categories`: flat lista `parent_id` mezővel
-  - `category_tree`: rekurzív nested fa `children` tömbökkel
-- Webshop szűrésnél szülő kategória kiválasztásakor az összes leszármazott kategória termékei is megjelennek.
+A kapcsolatfelvételi űrlap a `api/quotes.php` végpontra küld:
 
-## 7) Futtatás helyben
+- név
+- e-mail cím
+- telefonszám
+- munkatípus
+- üzenet
 
-A repository gyökeréből indítsd:
+Minden adatbázis művelet prepared statementtel történik.
 
-```bash
-php -S localhost:8000
-```
+### Admin oldali kezelés
 
-Ezután nyisd meg: `http://localhost:8000`
+Az admin **Ajánlatkérések** tabon elérhető:
 
-## 8) API végpontok
+- státusz szűrő (`Összes`, `Új`, `Folyamatban`, `Megválaszolva`, `Lezárva`)
+- keresés név / e-mail / telefonszám / üzenet alapján
+- új ajánlatkérések badge + KPI számláló
+- új sorok vizuális kiemelése
+- részletek modal ügyféladatokkal és előzményekkel
+- admin válasz küldése e-mailben
+- státuszváltás és törlés megerősítéssel
 
-- `api/auth.php` (regisztráció, login, logout, aktuális user)
-- `api/password-reset.php` (elfelejtett jelszó token kérés/ellenőrzés/reset)
-- `api/users.php` (admin user CRUD)
-- `api/categories.php` (korlátlan mélységű kategóriafa CRUD + flat/tree lista)
-- `api/products.php` (termék CRUD)
-- `api/orders.php` (checkout + rendelés lista + státusz frissítés)
-- `api/quotes.php` (ajánlatkérés létrehozás + admin kezelés)
-- `api/estimates.php` (bejelentkezett user kalkulációi)
+### API műveletek
+
+- `POST api/quotes.php` (`action=create`) – publikus ajánlatkérés létrehozása
+- `GET api/quotes.php` – admin lista
+- `GET api/quotes.php?id={ID}` – admin részletek + reply history
+- `POST api/quotes.php` (`action=update_status`) – admin státuszváltás
+- `POST api/quotes.php` (`action=reply`) – admin válasz + e-mail kiküldés + előzmény mentés
+- `POST api/quotes.php` (`action=delete`) – admin törlés
+
+### E-mail küldés viselkedése
+
+- Ha PHPMailer telepítve van, a backend azt használja SMTP-hez.
+- Ha PHPMailer nincs, a backend beépített SMTP socket fallbacket használ.
+- Ha nincs SMTP konfiguráció és `APP_ENV=development`, az e-mail **nem vész el**, hanem a címzett és tartalom a `logs/mail-dev.log` fájlba kerül, valamint a fejlesztői API válaszban is megjelenik.
+- Production környezetben e-mail tartalom nem szivárog vissza API válaszban.
+- Ha az e-mail küldés hibás, az API nem ad hamis sikert, és a reply mentés rollbackelődik.
+
+## 7) Termékképek és kategóriák
+
+- `products.image_url` mező támogatott az admin termék CRUD felületen
+- hibás vagy hiányzó kép esetén ikon fallback látszik
+- a kategóriák korlátlan mélységűek (`categories.parent_id` önhivatkozó FK)
+- a `GET api/categories.php` flat listát és rekurzív `category_tree` választ is ad
+
+## 8) Biztonsági megjegyzések
+
+- Az admin műveletek szerveroldali jogosultság-ellenőrzéssel védettek (`require_admin()`).
+- A session-alapú módosító műveletekhez CSRF token szükséges (`X-CSRF-Token`).
+- Az e-mail címek validálása szerveroldalon történik.
+- A frontend renderelés escape-eli az ügyfél- és adminszövegeket.
+- SMTP jelszót vagy teljes éles konfigurációt ne naplózz, ne commitolj és ne jeleníts meg a kliensoldalon.
+
+## 9) API végpontok
+
+- `api/auth.php` – regisztráció, login, logout, aktuális user
+- `api/password-reset.php` – elfelejtett jelszó token kérés / ellenőrzés / reset
+- `api/users.php` – admin user CRUD + admin jelszócsere
+- `api/categories.php` – korlátlan mélységű kategóriafa CRUD + flat/tree lista
+- `api/products.php` – termék CRUD
+- `api/orders.php` – checkout + rendelés lista + státusz frissítés
+- `api/quotes.php` – ajánlatkérés létrehozás + admin válaszkezelés
+- `api/estimates.php` – bejelentkezett user kalkulációi

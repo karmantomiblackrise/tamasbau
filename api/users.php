@@ -118,6 +118,11 @@ if ($method === 'POST') {
         if ((int) $estimateCountStmt->fetchColumn() > 0) {
             send_json(['ok' => false, 'error' => 'Mentett kalkulációval rendelkező felhasználó nem törölhető.'], 422);
         }
+        $quoteReplyCountStmt = db()->prepare('SELECT COUNT(*) FROM quote_replies WHERE admin_user_id = ?');
+        $quoteReplyCountStmt->execute([$id]);
+        if ((int) $quoteReplyCountStmt->fetchColumn() > 0) {
+            send_json(['ok' => false, 'error' => 'Ajánlatkérés-válasszal rendelkező admin felhasználó nem törölhető.'], 422);
+        }
 
         $stmt = db()->prepare('DELETE FROM users WHERE id = ?');
         $stmt->execute([$id]);
