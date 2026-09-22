@@ -3,6 +3,7 @@ USE tamasbau;
 
 SET NAMES utf8mb4;
 
+DROP TABLE IF EXISTS quote_replies;
 DROP TABLE IF EXISTS order_items;
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS saved_estimates;
@@ -84,8 +85,25 @@ CREATE TABLE quotes (
   email VARCHAR(190) NOT NULL,
   work_type VARCHAR(100) NOT NULL,
   message TEXT NOT NULL,
-  status ENUM('new', 'contacted', 'closed') NOT NULL DEFAULT 'new',
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  status ENUM('new', 'in_progress', 'answered', 'closed') NOT NULL DEFAULT 'new',
+  admin_reply TEXT NULL,
+  replied_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_quotes_status_created (status, created_at),
+  INDEX idx_quotes_email (email),
+  INDEX idx_quotes_replied_at (replied_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE quote_replies (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  quote_id INT UNSIGNED NOT NULL,
+  admin_user_id INT UNSIGNED NOT NULL,
+  reply_message TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_quote_replies_quote FOREIGN KEY (quote_id) REFERENCES quotes(id) ON DELETE CASCADE,
+  CONSTRAINT fk_quote_replies_admin_user FOREIGN KEY (admin_user_id) REFERENCES users(id) ON DELETE RESTRICT,
+  INDEX idx_quote_replies_quote_created (quote_id, created_at),
+  INDEX idx_quote_replies_admin_user_id (admin_user_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE saved_estimates (
@@ -141,8 +159,12 @@ INSERT INTO order_items (order_id, product_id, qty, unit_price) VALUES
 (1, 2, 1, 18900),
 (2, 3, 1, 42500);
 
-INSERT INTO quotes (name, phone, email, work_type, message, status, created_at) VALUES
-('Varga Balázs', '+36 30 555 1234', 'varga.balazs@example.hu', 'Riasztó kiépítés', '120m2-es családi házhoz szeretnék komplett Ajax rendszert.', 'new', '2026-03-19 09:45:00');
+INSERT INTO quotes (name, phone, email, work_type, message, status, admin_reply, replied_at, created_at) VALUES
+('Varga Balázs', '+36 30 555 1234', 'varga.balazs@example.hu', 'Riasztó kiépítés', '120m2-es családi házhoz szeretnék komplett Ajax rendszert.', 'new', NULL, NULL, '2026-03-19 09:45:00'),
+('Kiss Andrea', '+36 30 111 2233', 'kiss.andrea@example.hu', 'Kamerarendszer bővítés', 'Két új kültéri kamerát szeretnék a garázshoz és az udvarra.', 'answered', 'Köszönjük a megkeresést, 24 órán belül küldjük a részletes ajánlatot.', '2026-03-20 15:30:00', '2026-03-20 14:10:00');
+
+INSERT INTO quote_replies (quote_id, admin_user_id, reply_message, created_at) VALUES
+(2, 1, 'Köszönjük a megkeresést, 24 órán belül küldjük a részletes ajánlatot.', '2026-03-20 15:30:00');
 
 INSERT INTO saved_estimates (user_id, area, wiring_type, alarm_qty, camera_qty, intercom, total, created_at) VALUES
 (2, 70, 'full', 1, 2, 0, 1190000, '2026-03-20 11:30:00');

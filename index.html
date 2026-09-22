@@ -585,6 +585,7 @@
                 </button>
                 <button onclick="switchAdminTab('quotes')" id="tab-btn-quotes" class="admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white">
                     <i class="fa-solid fa-envelope-open-text mr-2"></i>Beérkezett Ajánlatkérések
+                    <span id="tab-quotes-badge" class="ml-2 hidden bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-bold px-2 py-0.5 rounded-full">0</span>
                 </button>
                 <button onclick="switchAdminTab('users')" id="tab-btn-users" class="admin-tab-btn py-3 px-5 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-white">
                     <i class="fa-solid fa-users mr-2"></i>Felhasználók
@@ -711,21 +712,38 @@
             </div>
 
             <div id="admin-tab-quotes" class="admin-tab-content hidden space-y-6">
-                <h3 class="text-xl font-bold text-white">Munkatípus Ajánlatkérések & Helyszíni Felmérések</h3>
+                <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+                    <div>
+                        <h3 class="text-xl font-bold text-white">Munkatípus Ajánlatkérések & Helyszíni Felmérések</h3>
+                        <p class="text-sm text-slate-400 mt-1">Valós backendes lista státuszokkal, előzményekkel és admin válaszokkal.</p>
+                    </div>
+                    <div class="grid sm:grid-cols-2 xl:flex gap-3">
+                        <select id="quote-status-filter" onchange="setQuoteStatusFilter(this.value)" class="bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white">
+                            <option value="all">Összes</option>
+                            <option value="new">Új</option>
+                            <option value="in_progress">Folyamatban</option>
+                            <option value="answered">Megválaszolva</option>
+                            <option value="closed">Lezárva</option>
+                        </select>
+                        <input type="search" id="quote-search-input" oninput="handleQuoteSearchInput(this.value)" class="bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white min-w-[260px]" placeholder="Keresés név, e-mail, telefon, üzenet alapján">
+                    </div>
+                </div>
                 <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
                     <div class="overflow-x-auto">
-                        <table class="w-full text-left text-sm text-slate-300">
+                        <table class="w-full text-left text-sm text-slate-300 min-w-[980px]">
                             <thead class="bg-slate-900 text-xs uppercase text-slate-400">
                                 <tr>
-                                    <th class="p-4">Név / Elérhetőség</th>
+                                    <th class="p-4">Név</th>
+                                    <th class="p-4">E-mail</th>
+                                    <th class="p-4">Telefonszám</th>
                                     <th class="p-4">Munkatípus</th>
-                                    <th class="p-4">Üzenet Részletei</th>
-                                    <th class="p-4">Dátum</th>
-                                    <th class="p-4 text-right">Kezelés</th>
+                                    <th class="p-4">Státusz</th>
+                                    <th class="p-4">Érkezett</th>
+                                    <th class="p-4">Utolsó válasz</th>
+                                    <th class="p-4 text-right">Műveletek</th>
                                 </tr>
                             </thead>
-                            <tbody id="admin-quotes-table" class="divide-y divide-slate-700">
-                            </tbody>
+                            <tbody id="admin-quotes-table" class="divide-y divide-slate-700"></tbody>
                         </table>
                     </div>
                 </div>
@@ -958,6 +976,45 @@
         </div>
     </div>
 
+    <div id="quote-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-4xl rounded-2xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button onclick="closeQuoteModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl">&times;</button>
+            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
+                <div>
+                    <h3 class="text-xl font-bold text-white">Ajánlatkérés részletei</h3>
+                    <p id="quote-modal-subtitle" class="text-sm text-slate-400 mt-1"></p>
+                </div>
+                <div class="w-full lg:w-56">
+                    <label class="block text-xs text-slate-300 mb-1">Státusz</label>
+                    <select id="quote-modal-status" onchange="handleQuoteModalStatusChange(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white"></select>
+                </div>
+            </div>
+            <div id="quote-modal-details" class="grid md:grid-cols-2 gap-4 mb-6"></div>
+            <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 mb-6">
+                <div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Eredeti üzenet</div>
+                <p id="quote-modal-message" class="text-sm text-slate-200 whitespace-pre-line break-words"></p>
+            </div>
+            <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 mb-6">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                    <div class="text-xs uppercase tracking-wide text-slate-400">Válasz előzmények</div>
+                    <span id="quote-modal-reply-count" class="text-xs text-slate-400"></span>
+                </div>
+                <div id="quote-modal-history" class="space-y-3"></div>
+            </div>
+            <form onsubmit="handleQuoteReplySubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">Admin válasz</label>
+                    <textarea id="quote-modal-reply" rows="5" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm" placeholder="Írja meg az ügyfélnek küldendő választ..."></textarea>
+                </div>
+                <p id="quote-modal-dev-info" class="text-xs text-amber-300 break-all min-h-4"></p>
+                <div class="flex flex-col sm:flex-row gap-3 justify-end">
+                    <button type="button" onclick="closeQuoteModal()" class="px-4 py-3 rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-800">Bezárás</button>
+                    <button type="submit" class="px-4 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold">Válasz küldése</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="toast-notification" class="fixed bottom-5 right-5 bg-amber-500 text-slate-950 px-5 py-3 rounded-xl font-bold shadow-2xl transition-all duration-300 transform translate-y-20 opacity-0 z-50 flex items-center space-x-2">
         <i class="fa-solid fa-circle-check text-lg"></i>
         <span id="toast-message">Sikeres művelet!</span>
@@ -1025,6 +1082,7 @@
             csrfToken: localStorage.getItem('tb_csrf') || null,
             estimates: [],
             activeShopCategoryId: 'all',
+            quoteFilters: { status: 'all', search: '', selectedId: null, selectedQuote: null },
             calcData: { area: 70, wiringType: 'full', alarmQty: 1, cameraQty: 2, intercom: false, total: 0 }
         };
 
@@ -1035,6 +1093,97 @@
                 .replaceAll('>', '&gt;')
                 .replaceAll('"', '&quot;')
                 .replaceAll("'", '&#039;');
+        }
+
+        function formatDateTime(value) {
+            if (!value) return '—';
+            const normalized = String(value).replace(' ', 'T');
+            const date = new Date(normalized);
+            if (Number.isNaN(date.getTime())) return esc(String(value));
+            return esc(date.toLocaleString('hu-HU', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }));
+        }
+
+        function getQuoteStatusMeta(status) {
+            const map = {
+                new: { label: 'Új', className: 'bg-rose-500/15 text-rose-300 border border-rose-500/30' },
+                in_progress: { label: 'Folyamatban', className: 'bg-sky-500/15 text-sky-300 border border-sky-500/30' },
+                answered: { label: 'Megválaszolva', className: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' },
+                closed: { label: 'Lezárva', className: 'bg-slate-500/15 text-slate-300 border border-slate-500/30' }
+            };
+            return map[status] || { label: String(status || 'ismeretlen'), className: 'bg-slate-500/15 text-slate-300 border border-slate-500/30' };
+        }
+
+        function getFilteredQuotes() {
+            const status = state.quoteFilters.status || 'all';
+            const term = (state.quoteFilters.search || '').trim().toLowerCase();
+            return state.quotes.filter(q => {
+                const statusOk = status === 'all' || q.status === status;
+                if (!statusOk) return false;
+                if (!term) return true;
+                const haystack = [q.name, q.email, q.phone, q.type, q.message].join(' ').toLowerCase();
+                return haystack.includes(term);
+            });
+        }
+
+        function updateQuoteIndicators() {
+            const newCount = state.quotes.filter(q => q.status === 'new').length;
+            const kpi = document.getElementById('kpi-quotes-count');
+            const badge = document.getElementById('tab-quotes-badge');
+            if (kpi) kpi.innerText = newCount + ' db';
+            if (badge) {
+                badge.innerText = String(newCount);
+                badge.classList.toggle('hidden', newCount === 0);
+            }
+        }
+
+        function renderQuoteReplyHistory(replies = []) {
+            const history = document.getElementById('quote-modal-history');
+            const count = document.getElementById('quote-modal-reply-count');
+            if (!history || !count) return;
+            count.innerText = `${replies.length} válasz`;
+            history.innerHTML = replies.length ? replies.map(reply => `
+                <div class="bg-slate-900 border border-slate-700 rounded-xl p-3">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+                        <div class="font-semibold text-white text-sm">${esc(reply.admin_name || 'Adminisztrátor')}</div>
+                        <div class="text-xs text-slate-400">${formatDateTime(reply.created_at)}</div>
+                    </div>
+                    <p class="text-sm text-slate-200 whitespace-pre-line break-words">${esc(reply.reply_message)}</p>
+                </div>
+            `).join('') : '<p class="text-sm text-slate-500">Még nincs mentett admin válasz.</p>';
+        }
+
+        function renderQuoteModal() {
+            const quote = state.quoteFilters.selectedQuote;
+            if (!quote) return;
+            const statusMeta = getQuoteStatusMeta(quote.status);
+            document.getElementById('quote-modal-subtitle').innerText = `${quote.name} • #${quote.id}`;
+            document.getElementById('quote-modal-message').innerText = quote.message || '';
+            document.getElementById('quote-modal-reply').value = '';
+            const statusSelect = document.getElementById('quote-modal-status');
+            statusSelect.innerHTML = ['new', 'in_progress', 'answered', 'closed'].map(status => `
+                <option value="${status}" ${status === quote.status ? 'selected' : ''}>${getQuoteStatusMeta(status).label}</option>
+            `).join('');
+            document.getElementById('quote-modal-details').innerHTML = `
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4">
+                    <div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Ügyfél adatok</div>
+                    <div class="space-y-2 text-sm">
+                        <div><span class="text-slate-400">Név:</span> <span class="text-white font-semibold">${esc(quote.name)}</span></div>
+                        <div><span class="text-slate-400">E-mail:</span> <span class="text-white">${esc(quote.email)}</span></div>
+                        <div><span class="text-slate-400">Telefon:</span> <span class="text-white">${esc(quote.phone)}</span></div>
+                        <div><span class="text-slate-400">Munkatípus:</span> <span class="text-white">${esc(quote.type)}</span></div>
+                    </div>
+                </div>
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4">
+                    <div class="text-xs uppercase tracking-wide text-slate-400 mb-2">Állapot</div>
+                    <div class="space-y-2 text-sm">
+                        <div><span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${statusMeta.className}">${statusMeta.label}</span></div>
+                        <div><span class="text-slate-400">Érkezett:</span> <span class="text-white">${formatDateTime(quote.created_at)}</span></div>
+                        <div><span class="text-slate-400">Utolsó válasz:</span> <span class="text-white">${formatDateTime(quote.last_reply_at || quote.replied_at)}</span></div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('quote-modal-dev-info').innerText = '';
+            renderQuoteReplyHistory(quote.replies || []);
         }
 
         async function apiFetch(url, options = {}) {
@@ -1094,6 +1243,7 @@
             if (!state.currentUser || state.currentUser.role !== 'admin') return;
             const data = await apiFetch(API.quotes);
             state.quotes = data.quotes || [];
+            updateQuoteIndicators();
         }
 
         async function loadUsers() {
@@ -1121,9 +1271,12 @@
                 state.estimates = [];
                 state.quotes = [];
                 state.users = [];
+                state.quoteFilters.selectedId = null;
+                state.quoteFilters.selectedQuote = null;
             }
             updateAuthUI();
             updateCartBadge();
+            updateQuoteIndicators();
         }
 
         function showPage(pageId) {
@@ -1549,8 +1702,11 @@
             state.estimates = [];
             state.users = [];
             state.quotes = [];
+            state.quoteFilters.selectedId = null;
+            state.quoteFilters.selectedQuote = null;
             localStorage.removeItem('tb_csrf');
             updateAuthUI();
+            updateQuoteIndicators();
             showPage('home');
             showToast('Kijelentkezve.');
         }
@@ -1656,13 +1812,13 @@
         async function renderAdminTab(tab) {
             if (tab === 'overview') {
                 if (!state.orders.length) await loadOrders();
-                if (!state.quotes.length) await loadQuotes();
+                await loadQuotes();
                 if (!state.users.length) await loadUsers();
                 if (!state.products.length) await loadProducts();
                 const totalRev = state.orders.reduce((sum, o) => sum + Number(o.total || 0), 0);
                 document.getElementById('kpi-revenue').innerText = totalRev.toLocaleString('hu-HU') + ' Ft';
                 document.getElementById('kpi-orders-count').innerText = state.orders.length + ' db';
-                document.getElementById('kpi-quotes-count').innerText = state.quotes.filter(q => q.status === 'new').length + ' db';
+                updateQuoteIndicators();
                 document.getElementById('kpi-users-count').innerText = state.users.filter(u => Number(u.is_active) === 1).length + ' fő';
                 renderAdminChart();
             } else if (tab === 'products') {
@@ -1709,23 +1865,35 @@
                 `).join('');
             } else if (tab === 'quotes') {
                 if (!state.quotes.length) await loadQuotes();
-                const statuses = ['new', 'contacted', 'closed'];
                 const table = document.getElementById('admin-quotes-table');
-                table.innerHTML = state.quotes.map(q => `
-                    <tr class="hover:bg-slate-700/50">
+                const statusSelect = document.getElementById('quote-status-filter');
+                const searchInput = document.getElementById('quote-search-input');
+                if (statusSelect) statusSelect.value = state.quoteFilters.status;
+                if (searchInput) searchInput.value = state.quoteFilters.search;
+                const filteredQuotes = getFilteredQuotes();
+                table.innerHTML = filteredQuotes.map(q => {
+                    const statusMeta = getQuoteStatusMeta(q.status);
+                    return `
+                    <tr class="${q.is_new ? 'bg-amber-500/5' : ''} hover:bg-slate-700/50">
                         <td class="p-4">
-                            <div class="font-bold text-white">${esc(q.name)}</div>
-                            <div class="text-xs text-slate-400">${esc(q.phone)} / ${esc(q.email)}</div>
+                            <div class="flex items-center gap-2">
+                                <div class="font-bold text-white">${esc(q.name)}</div>
+                                ${q.is_new ? '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">ÚJ</span>' : ''}
+                            </div>
                         </td>
+                        <td class="p-4 text-xs">${esc(q.email)}</td>
+                        <td class="p-4 text-xs">${esc(q.phone)}</td>
                         <td class="p-4 text-amber-400 text-xs font-semibold">${esc(q.type)}</td>
-                        <td class="p-4 text-xs max-w-xs truncate">${esc(q.message)}</td>
-                        <td class="p-4 text-xs text-slate-400">${esc(q.date)}</td>
+                        <td class="p-4"><span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${statusMeta.className}">${statusMeta.label}</span></td>
+                        <td class="p-4 text-xs text-slate-400">${formatDateTime(q.created_at)}</td>
+                        <td class="p-4 text-xs text-slate-400">${formatDateTime(q.last_reply_at || q.replied_at)}</td>
                         <td class="p-4 text-right space-x-2">
-                            <select onchange="updateQuoteStatus(${q.id}, this.value)" class="bg-slate-700 text-xs rounded px-2 py-1 border border-slate-600">${statuses.map(s => `<option value="${s}" ${s === q.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
+                            <button onclick="openQuoteModal(${q.id})" class="text-xs bg-sky-500/15 hover:bg-sky-500/25 px-2.5 py-1.5 rounded text-sky-200 border border-sky-500/25">Megnyitás</button>
+                            <select onchange="updateQuoteStatus(${q.id}, this.value)" class="bg-slate-700 text-xs rounded px-2 py-1 border border-slate-600">${['new', 'in_progress', 'answered', 'closed'].map(s => `<option value="${s}" ${s === q.status ? 'selected' : ''}>${getQuoteStatusMeta(s).label}</option>`).join('')}</select>
                             <button onclick="deleteQuote(${q.id})" class="text-rose-400 hover:underline text-xs"><i class="fa-solid fa-trash"></i></button>
                         </td>
-                    </tr>
-                `).join('');
+                    </tr>`;
+                }).join('') || '<tr><td colspan="8" class="p-6 text-center text-slate-500">Nincs a szűrésnek megfelelő ajánlatkérés.</td></tr>';
             } else if (tab === 'users') {
                 if (!state.users.length) await loadUsers();
                 const table = document.getElementById('admin-users-table');
@@ -1960,13 +2128,81 @@
             }
         }
 
-        async function updateQuoteStatus(id, status) {
+        function setQuoteStatusFilter(value) {
+            state.quoteFilters.status = value || 'all';
+            renderAdminTab('quotes');
+        }
+
+        function handleQuoteSearchInput(value) {
+            state.quoteFilters.search = value || '';
+            renderAdminTab('quotes');
+        }
+
+        async function openQuoteModal(id) {
+            try {
+                const data = await apiFetch(`${API.quotes}?id=${encodeURIComponent(id)}`);
+                state.quoteFilters.selectedId = id;
+                state.quoteFilters.selectedQuote = data.quote || null;
+                renderQuoteModal();
+                document.getElementById('quote-modal').classList.remove('hidden');
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        function closeQuoteModal() {
+            document.getElementById('quote-modal').classList.add('hidden');
+            state.quoteFilters.selectedId = null;
+            state.quoteFilters.selectedQuote = null;
+        }
+
+        async function handleQuoteModalStatusChange(status) {
+            const quoteId = state.quoteFilters.selectedId;
+            if (!quoteId) return;
+            const updated = await updateQuoteStatus(quoteId, status, false);
+            if (updated) await openQuoteModal(quoteId);
+        }
+
+        async function updateQuoteStatus(id, status, rerender = true) {
             try {
                 await apiFetch(API.quotes, { method: 'POST', body: JSON.stringify({ action: 'update_status', id, status }) });
                 await loadQuotes();
-                renderAdminTab('quotes');
+                if (rerender) await renderAdminTab('quotes');
                 showToast('Ajánlatkérés státusza frissítve');
+                return true;
             } catch (err) {
+                showToast(err.message);
+                return false;
+            }
+        }
+
+        async function handleQuoteReplySubmit(e) {
+            e.preventDefault();
+            const quoteId = state.quoteFilters.selectedId;
+            const replyMessage = document.getElementById('quote-modal-reply').value.trim();
+            const status = document.getElementById('quote-modal-status').value;
+            const devInfo = document.getElementById('quote-modal-dev-info');
+            devInfo.innerText = '';
+            if (!quoteId || !replyMessage) return;
+
+            try {
+                const data = await apiFetch(API.quotes, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'reply', id: quoteId, reply_message: replyMessage, status: status === 'closed' ? 'closed' : 'answered' })
+                });
+                if (data?.dev_email?.to) {
+                    devInfo.innerText = `Fejlesztői e-mail log: ${data.dev_email.to} • ${data.dev_email.log_path}`;
+                }
+                await loadQuotes();
+                state.quoteFilters.selectedQuote = data.quote || state.quoteFilters.selectedQuote;
+                renderQuoteModal();
+                if (data?.dev_email?.to) {
+                    document.getElementById('quote-modal-dev-info').innerText = `Fejlesztői e-mail log: ${data.dev_email.to} • ${data.dev_email.log_path}`;
+                }
+                await renderAdminTab('quotes');
+                showToast('Admin válasz sikeresen elküldve.');
+            } catch (err) {
+                devInfo.innerText = err.message || '';
                 showToast(err.message);
             }
         }
@@ -1976,7 +2212,10 @@
             try {
                 await apiFetch(API.quotes, { method: 'POST', body: JSON.stringify({ action: 'delete', id }) });
                 await loadQuotes();
-                renderAdminTab('quotes');
+                if (state.quoteFilters.selectedId === id) {
+                    closeQuoteModal();
+                }
+                await renderAdminTab('quotes');
                 showToast('Ajánlatkérés törölve');
             } catch (err) {
                 showToast(err.message);
