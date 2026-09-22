@@ -3,6 +3,8 @@ USE tamasbau;
 
 SET NAMES utf8mb4;
 
+DROP TABLE IF EXISTS support_messages;
+DROP TABLE IF EXISTS support_chats;
 DROP TABLE IF EXISTS quote_replies;
 DROP TABLE IF EXISTS order_items;
 DROP TABLE IF EXISTS orders;
@@ -106,6 +108,33 @@ CREATE TABLE quote_replies (
   INDEX idx_quote_replies_admin_user_id (admin_user_id)
 ) ENGINE=InnoDB;
 
+CREATE TABLE support_chats (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_name VARCHAR(120) NULL,
+  user_email VARCHAR(190) NOT NULL,
+  status ENUM('new', 'open', 'resolved') NOT NULL DEFAULT 'new',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  last_message_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  unread_count INT UNSIGNED NOT NULL DEFAULT 0,
+  INDEX idx_support_chats_status_last_message (status, last_message_at),
+  INDEX idx_support_chats_email_updated (user_email, updated_at),
+  INDEX idx_support_chats_unread (unread_count, last_message_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE support_messages (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  chat_id INT UNSIGNED NOT NULL,
+  sender_type ENUM('customer', 'admin') NOT NULL,
+  sender_name VARCHAR(120) NULL,
+  sender_email VARCHAR(190) NULL,
+  message TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_support_messages_chat FOREIGN KEY (chat_id) REFERENCES support_chats(id) ON DELETE CASCADE,
+  INDEX idx_support_messages_chat_created (chat_id, created_at),
+  INDEX idx_support_messages_sender_email (sender_email)
+) ENGINE=InnoDB;
+
 CREATE TABLE saved_estimates (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id INT UNSIGNED NOT NULL,
@@ -165,6 +194,15 @@ INSERT INTO quotes (name, phone, email, work_type, message, status, admin_reply,
 
 INSERT INTO quote_replies (quote_id, admin_user_id, reply_message, created_at) VALUES
 (2, 1, 'Köszönjük a megkeresést, 24 órán belül küldjük a részletes ajánlatot.', '2026-03-20 15:30:00');
+
+INSERT INTO support_chats (id, user_name, user_email, status, created_at, updated_at, last_message_at, unread_count) VALUES
+(1, 'Kovács Júlia', 'kovacs.julia@example.hu', 'new', '2026-03-21 10:05:00', '2026-03-21 10:05:00', '2026-03-21 10:05:00', 1),
+(2, 'Fekete András', 'fekete.andras@example.hu', 'open', '2026-03-20 16:20:00', '2026-03-20 17:05:00', '2026-03-20 17:05:00', 0);
+
+INSERT INTO support_messages (chat_id, sender_type, sender_name, sender_email, message, created_at) VALUES
+(1, 'customer', 'Kovács Júlia', 'kovacs.julia@example.hu', 'Jó estét! A lakásomban időnként lever a biztosíték, tudnának visszahívni?', '2026-03-21 10:05:00'),
+(2, 'customer', 'Fekete András', 'fekete.andras@example.hu', 'Szeretnék egy kisebb kamerarendszer bővítést egyeztetni.', '2026-03-20 16:20:00'),
+(2, 'admin', 'Tamás Bau Admin', 'admin@tamasbau.hu', 'Köszönjük az üzenetet! Holnap délelőtt felvesszük Önnel a kapcsolatot.', '2026-03-20 17:05:00');
 
 INSERT INTO saved_estimates (user_id, area, wiring_type, alarm_qty, camera_qty, intercom, total, created_at) VALUES
 (2, 70, 'full', 1, 2, 0, 1190000, '2026-03-20 11:30:00');
