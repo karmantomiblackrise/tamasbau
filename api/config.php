@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 load_env_file(dirname(__DIR__) . '/.env');
 $composerAutoload = dirname(__DIR__) . '/vendor/autoload.php';
-if (is_file($composerAutoload)) {
+if (is_file($composerAutoload) && is_readable($composerAutoload)) {
     require_once $composerAutoload;
 }
 
@@ -73,9 +73,94 @@ function env_value(string $key, ?string $default = null): ?string
     return (string) $value;
 }
 
+function cpanel_config_fallback(): array
+{
+    static $cached = null;
+    if (is_array($cached)) {
+        return $cached;
+    }
+
+    $cached = [];
+    $path = __DIR__ . '/config.local.php';
+    if (!is_file($path) || !is_readable($path)) {
+        return $cached;
+    }
+
+    $data = require $path;
+    if (!is_array($data)) {
+        return $cached;
+    }
+
+    $cached = $data;
+    return $cached;
+}
+
+function cpanel_config_value(string $key, ?string $default = null): ?string
+{
+    $config = cpanel_config_fallback();
+    if (strpos($key, 'MAIL_') === 0) {
+        if (array_key_exists($key, $config)) {
+            $value = $config[$key];
+            if ($value === null || $value === '') {
+                return $default;
+            }
+            return is_scalar($value) ? (string) $value : $default;
+        }
+
+        $mailKey = strtolower(substr($key, 5));
+        $mailKeyMap = [
+            'host' => 'host',
+            'port' => 'port',
+            'username' => 'username',
+            'password' => 'password',
+            'encryption' => 'secure',
+            'from_address' => 'from_address',
+            'from_name' => 'from_name',
+            'auth' => 'auth',
+            'timeout' => 'timeout',
+            'ehlo_domain' => 'ehlo_domain',
+        ];
+        $mappedMailKey = $mailKeyMap[$mailKey] ?? $mailKey;
+        if (isset($config['mail']) && is_array($config['mail']) && array_key_exists($mappedMailKey, $config['mail'])) {
+            $value = $config['mail'][$mappedMailKey];
+            if ($value === null || $value === '') {
+                return $default;
+            }
+            return is_scalar($value) ? (string) $value : $default;
+        }
+    }
+
+    if (array_key_exists($key, $config)) {
+        $value = $config[$key];
+        if ($value === null || $value === '') {
+            return $default;
+        }
+        return is_scalar($value) ? (string) $value : $default;
+    }
+
+    return $default;
+}
+
+function env_or_fallback(array $keys, ?string $default = null): ?string
+{
+    foreach ($keys as $key) {
+        $value = env_value($key, null);
+        if ($value !== null && $value !== '') {
+            return $value;
+        }
+    }
+    foreach ($keys as $key) {
+        $value = cpanel_config_value($key, null);
+        if ($value !== null && $value !== '') {
+            return $value;
+        }
+    }
+    return $default;
+}
+
 function app_env(): string
 {
-    return strtolower((string) env_value('APP_ENV', 'production'));
+    return strtolower((string) env_or_fallback(['APP_ENV'], 'production'));
 }
 
 function app_is_development(): bool
@@ -90,22 +175,24 @@ function app_config(): array
         return $config;
     }
 
-    $mailPort = (int) env_value('TB_MAIL_PORT', '587');
+    $mailPort = (int) env_or_fallback(['MAIL_PORT', 'TB_MAIL_PORT'], '587');
+    $mailAuthRaw = env_or_fallback(['MAIL_AUTH', 'TB_MAIL_AUTH'], 'true');
+    $mailAuthValue = filter_var($mailAuthRaw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
     $config = [
-        'app_name' => env_value('TB_APP_NAME', 'Tamás Bau Kft.'),
-        'app_url' => rtrim((string) env_value('TB_APP_URL', 'http://localhost:8000'), '/'),
+        'app_name' => env_or_fallback(['TB_APP_NAME', 'APP_NAME'], 'Tamás Bau Kft.'),
+        'app_url' => rtrim((string) env_or_fallback(['TB_APP_URL', 'APP_URL'], 'http://localhost:8000'), '/'),
         'mail' => [
-            'host' => trim((string) env_value('TB_MAIL_HOST', '')),
+            'host' => trim((string) env_or_fallback(['MAIL_HOST', 'TB_MAIL_HOST'], '')),
             'port' => $mailPort > 0 ? $mailPort : 587,
-            'username' => trim((string) env_value('TB_MAIL_USERNAME', '')),
-            'password' => (string) env_value('TB_MAIL_PASSWORD', ''),
-            'secure' => strtolower(trim((string) env_value('TB_MAIL_ENCRYPTION', 'tls'))),
-            'from_address' => trim((string) env_value('TB_MAIL_FROM_ADDRESS', '')),
-            'from_name' => trim((string) env_value('TB_MAIL_FROM_NAME', env_value('TB_APP_NAME', 'Tamás Bau Kft.'))),
-            'auth' => strtolower((string) env_value('TB_MAIL_AUTH', 'true')) !== 'false',
-            'timeout' => max(5, (int) env_value('TB_MAIL_TIMEOUT', '20')),
-            'ehlo_domain' => trim((string) env_value('TB_MAIL_EHLO_DOMAIN', parse_url((string) env_value('TB_APP_URL', 'http://localhost'), PHP_URL_HOST) ?: 'localhost')),
-            'dev_log' => env_value('TB_DEV_MAIL_LOG', dirname(__DIR__) . '/logs/mail-dev.log'),
+            'username' => trim((string) env_or_fallback(['MAIL_USERNAME', 'TB_MAIL_USERNAME'], '')),
+            'password' => (string) env_or_fallback(['MAIL_PASSWORD', 'TB_MAIL_PASSWORD'], ''),
+            'secure' => strtolower(trim((string) env_or_fallback(['MAIL_ENCRYPTION', 'TB_MAIL_ENCRYPTION'], 'tls'))),
+            'from_address' => trim((string) env_or_fallback(['MAIL_FROM_ADDRESS', 'TB_MAIL_FROM_ADDRESS'], '')),
+            'from_name' => trim((string) env_or_fallback(['MAIL_FROM_NAME', 'TB_MAIL_FROM_NAME'], env_or_fallback(['TB_APP_NAME', 'APP_NAME'], 'Tamás Bau Kft.'))),
+            'auth' => $mailAuthValue === null ? true : $mailAuthValue,
+            'timeout' => max(5, (int) env_or_fallback(['MAIL_TIMEOUT', 'TB_MAIL_TIMEOUT'], '20')),
+            'ehlo_domain' => trim((string) env_or_fallback(['MAIL_EHLO_DOMAIN', 'TB_MAIL_EHLO_DOMAIN'], parse_url((string) env_or_fallback(['TB_APP_URL', 'APP_URL'], 'http://localhost'), PHP_URL_HOST) ?: 'localhost')),
+            'dev_log' => env_or_fallback(['TB_DEV_MAIL_LOG'], dirname(__DIR__) . '/logs/mail-dev.log'),
         ],
     ];
 
@@ -288,6 +375,100 @@ function smtp_mailer_configured(): bool
 {
     $mail = app_config()['mail'];
     return $mail['host'] !== '' && $mail['port'] > 0 && $mail['from_address'] !== '';
+}
+
+function smtp_config_summary(): array
+{
+    $mail = app_config()['mail'];
+    $secure = strtolower((string) ($mail['secure'] ?? ''));
+    $secureLabel = $secure === 'tls' ? 'TLS (STARTTLS)' : ($secure === 'ssl' ? 'SSL/TLS' : 'nincs');
+    $maskValue = static function (string $value): string {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+        if (filter_var($value, FILTER_VALIDATE_EMAIL)) {
+            [$local, $domain] = explode('@', $value, 2);
+            $localMasked = mb_strlen($local) <= 2
+                ? mb_substr($local, 0, 1) . '*'
+                : mb_substr($local, 0, 2) . str_repeat('*', max(1, mb_strlen($local) - 2));
+            return $localMasked . '@' . $domain;
+        }
+        if (mb_strlen($value) <= 3) {
+            return mb_substr($value, 0, 1) . '**';
+        }
+        return mb_substr($value, 0, 2) . str_repeat('*', max(2, mb_strlen($value) - 2));
+    };
+
+    return [
+        'host' => (string) ($mail['host'] ?? ''),
+        'port' => (int) ($mail['port'] ?? 0),
+        'encryption' => $secureLabel,
+        'username' => $maskValue((string) ($mail['username'] ?? '')),
+        'password_status' => ((string) ($mail['password'] ?? '') !== '') ? 'beállítva' : 'nincs beállítva',
+        'from_address' => $maskValue((string) ($mail['from_address'] ?? '')),
+        'from_name' => (string) ($mail['from_name'] ?? ''),
+        'timeout' => (int) ($mail['timeout'] ?? 20),
+    ];
+}
+
+function ensure_phpmailer_available(): void
+{
+    $phpMailerClass = '\\PHPMailer\\PHPMailer\\PHPMailer';
+    if (class_exists($phpMailerClass)) {
+        return;
+    }
+
+    $vendorRoots = [
+        dirname(__DIR__) . '/vendor',
+        __DIR__ . '/vendor',
+    ];
+    foreach ($vendorRoots as $vendorRoot) {
+        $autoloadPath = $vendorRoot . '/autoload.php';
+        if (is_file($autoloadPath) && is_readable($autoloadPath)) {
+            require_once $autoloadPath;
+            break;
+        }
+    }
+    if (class_exists($phpMailerClass)) {
+        return;
+    }
+
+    $manualDirs = [];
+    foreach ($vendorRoots as $vendorRoot) {
+        $manualDirs[] = $vendorRoot . '/PHPMailer/src/';
+        $manualDirs[] = $vendorRoot . '/PHPMailer/PHPMailer/src/';
+        $manualDirs[] = $vendorRoot . '/phpmailer/src/';
+        $manualDirs[] = $vendorRoot . '/phpmailer/phpmailer/src/';
+    }
+    $manualFiles = ['Exception.php', 'PHPMailer.php', 'SMTP.php'];
+    $loaded = false;
+
+    foreach ($manualDirs as $manualBase) {
+        $allFound = true;
+        foreach ($manualFiles as $file) {
+            if (!is_file($manualBase . $file)) {
+                $allFound = false;
+                break;
+            }
+        }
+        if (!$allFound) {
+            continue;
+        }
+        foreach ($manualFiles as $file) {
+            require_once $manualBase . $file;
+        }
+        $loaded = true;
+        break;
+    }
+
+    if (!$loaded) {
+        throw new RuntimeException('A PHPMailer nincs telepítve. Telepítse Composerrel, vagy töltse fel a szükséges PHPMailer src fájlokat a vendor/... vagy api/vendor/... könyvtárba cPanel File Managerrel.');
+    }
+
+    if (!class_exists($phpMailerClass)) {
+        throw new RuntimeException('A PHPMailer betöltése sikertelen. Ellenőrizze a vendor/PHPMailer/src fájlszerkezetet.');
+    }
 }
 
 function mime_header_encode(string $value): string

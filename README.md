@@ -10,7 +10,7 @@ Ez a projekt a korábbi statikus `index.html` verzió továbbfejlesztett, PHP/My
 composer install
 ```
 
-A projekt PHPMailer támogatással működik, ha a `vendor/` könyvtár elérhető. Composer nélküli környezetben a backend beépített SMTP socket fallbacket használ; ha SMTP sincs beállítva és `APP_ENV=development`, akkor a kimenő e-mailek biztonságos fejlesztői logba kerülnek.
+A projekt PHPMailer támogatással működik. Az SMTP diagnosztikai és tesztküldő admin funkció először a Composer `vendor/autoload.php` betöltőt próbálja használni, majd cPanel kompatibilis manuális fallbackként a `vendor/PHPMailer/src` fájlokat. Ha SMTP nincs konfigurálva és `APP_ENV=development`, a meglévő fejlesztői e-mail log fallback (`TB_DEV_MAIL_LOG`) továbbra is elérhető az alkalmazás többi e-mail folyamatában.
 
 ### `.env` létrehozása
 
@@ -38,17 +38,20 @@ Ezután állítsd be a saját adatbázis- és SMTP-adataidat.
 
 ### SMTP / e-mail
 
-- `TB_MAIL_HOST`
-- `TB_MAIL_PORT`
-- `TB_MAIL_USERNAME`
-- `TB_MAIL_PASSWORD`
-- `TB_MAIL_ENCRYPTION` (`tls`, `ssl` vagy üres)
-- `TB_MAIL_AUTH` (`true` / `false`)
-- `TB_MAIL_FROM_ADDRESS`
-- `TB_MAIL_FROM_NAME`
-- `TB_MAIL_TIMEOUT`
-- `TB_MAIL_EHLO_DOMAIN`
+- `MAIL_HOST`
+- `MAIL_PORT`
+- `MAIL_USERNAME`
+- `MAIL_PASSWORD`
+- `MAIL_ENCRYPTION` (`tls`, `ssl` vagy üres)
+- `MAIL_AUTH` (`true` / `false`)
+- `MAIL_FROM_ADDRESS`
+- `MAIL_FROM_NAME`
+- `MAIL_TIMEOUT`
+- `MAIL_EHLO_DOMAIN`
 - `TB_DEV_MAIL_LOG` (fejlesztői log fájl, alapból `logs/mail-dev.log`)
+
+> Visszafelé kompatibilitás: a korábbi `TB_MAIL_*` kulcsok továbbra is támogatottak.
+> Prioritás: ha mindkét kulcskészlet meg van adva, a `MAIL_*` értékek élveznek elsőbbséget, a `TB_MAIL_*` csak fallback.
 
 > Fontos: SMTP jelszót, `.env` fájlt vagy valódi szerverhozzáférést ne commitolj a repository-ba.
 
@@ -215,8 +218,54 @@ Minden új SQL művelet prepared statementet használ.
 - A frontend renderelés escape-eli az ügyfél- és adminszövegeket.
 - SMTP jelszót vagy teljes éles konfigurációt ne naplózz, ne commitolj és ne jeleníts meg a kliensoldalon.
 - A support admin műveletek kizárólag admin sessionnel érhetők el.
+- Az SMTP diagnosztika és próba-e-mail műveletek kizárólag admin sessionnel és CSRF tokennel érhetők el.
 
-## 10) API végpontok
+## 10) cPanel workflow (terminál nélkül)
+
+1. **Fájlok feltöltése cPanel File Managerben**
+   - Töltsd fel a projektfájlokat a web gyökérkönyvtárba.
+   - Ellenőrizd, hogy az `api/` mappa és az `index.html` elérhető.
+2. **SMTP konfiguráció**
+   - Környezeti változókkal: cPanelben állítsd be a `MAIL_*` kulcsokat.
+   - Vagy másold az `api/config.example.php` fájlt `api/config.local.php` néven, és töltsd ki a valós SMTP adatokat.
+   - Prioritás: ha ugyanaz a kulcs környezeti változóban és `api/config.local.php`-ban is meg van adva, az **env érték élvez elsőbbséget**.
+3. **PHPMailer manuális feltöltése (Composer/SSH nélkül)**
+   - Töltsd le a hivatalos PHPMailer csomagot.
+   - A `vendor` mappát elsődlegesen a projekt gyökerébe töltsd fel (ahol az `index.html` található). Ha a tárhelystruktúra miatt csak `api/vendor` használható, azt is támogatja a fallback loader.
+   - Hozd létre a következő szerkezetet:
+     - `vendor/PHPMailer/src/Exception.php`
+     - `vendor/PHPMailer/src/PHPMailer.php`
+     - `vendor/PHPMailer/src/SMTP.php`
+   - `api/vendor` esetén ennek megfelelően:
+     - `api/vendor/PHPMailer/src/Exception.php`
+     - `api/vendor/PHPMailer/src/PHPMailer.php`
+     - `api/vendor/PHPMailer/src/SMTP.php`
+   - Elfogadott alternatíva: `vendor/PHPMailer/PHPMailer/src/...` vagy `vendor/phpmailer/phpmailer/src/...`.
+4. **SMTP diagnosztika megnyitása**
+   - Lépj be admin felhasználóval.
+   - Nyisd meg az Admin panelen az **SMTP diagnosztika** tabot.
+   - Kattints az **SMTP kapcsolat ellenőrzése** gombra.
+5. **Próba-e-mail küldése**
+   - Adj meg egy cél e-mail címet (nincs előre kitöltött külső cím).
+   - A küldést megerősítő ablak után indul a küldés.
+6. **Gyakori hibák**
+   - Port blokkolás (25/465/587 tiltva tárhelyszolgáltatónál).
+   - Hibás TLS/SSL mód (`MAIL_ENCRYPTION` eltérés).
+   - Hibás SMTP felhasználónév vagy jelszó.
+   - Rossz SMTP host vagy port.
+   - SPF/DKIM hiány miatt kézbesítési problémák.
+7. **Biztonsági figyelmeztetések**
+   - Az `api/config.local.php` fájlt ne töltsd fel GitHubra.
+   - SMTP jelszót soha ne commitolj.
+   - Az SMTP teszt funkció csak autentikált admin számára legyen használható.
+
+## 11) SMTP diagnosztika API
+
+- `POST api/smtp.php` + `action=status` (CSRF védetten) – admin-only konfiguráció összefoglaló
+- `POST api/smtp.php` + `action=check` (**JSON body-ban**) – SMTP kapcsolat és hitelesítés ellenőrzése (küldés nélkül)
+- `POST api/smtp.php` + `action=send_test` (**JSON body-ban**) – megerősítéssel próba-e-mail küldése explicit címzettre
+
+## 12) API végpontok
 
 - `api/auth.php` – regisztráció, login, logout, aktuális user
 - `api/password-reset.php` – elfelejtett jelszó token kérés / ellenőrzés / reset
@@ -227,4 +276,5 @@ Minden új SQL művelet prepared statementet használ.
 - `api/quotes.php` – ajánlatkérés létrehozás + admin válaszkezelés
 - `api/support.php` – publikus support chat létrehozás + ügyfél előzmények lekérése
 - `api/support-chats.php` – admin support inbox + részletek + reply + mark-read + státuszfrissítés
+- `api/smtp.php` – admin SMTP diagnosztika + próba-e-mail
 - `api/estimates.php` – bejelentkezett user kalkulációi
