@@ -20,6 +20,7 @@ Az API környezeti változókból olvassa a DB kapcsolatot:
 - `TB_DB_NAME` (alapértelmezett: `tamasbau`)
 - `TB_DB_USER` (alapértelmezett: `root`)
 - `TB_DB_PASS` (alapértelmezett: üres)
+- `APP_ENV` (`development` esetén az elfelejtett jelszó token visszaadásra kerül API válaszban és logba)
 
 Példa futtatás exporttal:
 
@@ -29,6 +30,7 @@ export TB_DB_PORT=3306
 export TB_DB_NAME=tamasbau
 export TB_DB_USER=root
 export TB_DB_PASS=secret
+export APP_ENV=development
 ```
 
 ## 3) Demo admin belépés
@@ -52,7 +54,27 @@ A hash előállításához használható parancs:
 php -r "echo password_hash('SajatErősJelszo123!', PASSWORD_DEFAULT), PHP_EOL;"
 ```
 
-## 4) Futtatás helyben
+## 4) Elfelejtett jelszó flow
+
+- Login modalban elérhető az **Elfelejtette a jelszavát?** funkció.
+- API végpont: `api/password-reset.php`
+  - `action=request` + `email` → reset token létrehozás (`password_resets` tábla, hash-elt token, 1 órás lejárat)
+  - `action=validate` + `token` → token ellenőrzés
+  - `action=reset` + `token` + `password` → új jelszó beállítás (min. 8 karakter)
+- A token egyszer használatos: reset után `used_at` mező beállításra kerül.
+- Fejlesztői módban (`APP_ENV=development`) a token:
+  - API válaszban (`dev.token`, `dev.reset_link`)
+  - illetve `logs/password-reset.log` fájlban is megjelenik.
+
+## 5) Termékképek
+
+`products.image_url` mező támogatott az admin termék CRUD felületen.
+
+- Webshop kártyán és admin listában kép jelenik meg.
+- Hibás vagy hiányzó URL esetén automatikus ikon fallback látható.
+- A `database/schema.sql` seed adatok működő publikus képlinkeket tartalmaznak.
+
+## 6) Futtatás helyben
 
 A repository gyökeréből indítsd:
 
@@ -62,9 +84,10 @@ php -S localhost:8000
 
 Ezután nyisd meg: `http://localhost:8000`
 
-## 5) API végpontok
+## 7) API végpontok
 
 - `api/auth.php` (regisztráció, login, logout, aktuális user)
+- `api/password-reset.php` (elfelejtett jelszó token kérés/ellenőrzés/reset)
 - `api/users.php` (admin user CRUD)
 - `api/categories.php` (kategória/alkategória CRUD)
 - `api/products.php` (termék CRUD)

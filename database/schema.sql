@@ -7,6 +7,7 @@ DROP TABLE IF EXISTS order_items;
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS saved_estimates;
 DROP TABLE IF EXISTS quotes;
+DROP TABLE IF EXISTS password_resets;
 DROP TABLE IF EXISTS products;
 DROP TABLE IF EXISTS categories;
 DROP TABLE IF EXISTS users;
@@ -38,9 +39,23 @@ CREATE TABLE products (
   price INT UNSIGNED NOT NULL,
   stock INT UNSIGNED NOT NULL DEFAULT 0,
   icon VARCHAR(80) NULL,
+  image_url VARCHAR(1000) NULL,
   description TEXT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_products_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+CREATE TABLE password_resets (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  email VARCHAR(190) NOT NULL,
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  expires_at DATETIME NOT NULL,
+  used_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_password_resets_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_password_resets_user_id (user_id),
+  INDEX idx_password_resets_expires_at (expires_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE orders (
@@ -105,13 +120,13 @@ INSERT INTO categories (id, name, slug, parent_id) VALUES
 (11, 'Okosotthon', 'okosotthon', NULL),
 (12, 'Kaputelefonok', 'kaputelefonok', 11);
 
-INSERT INTO products (name, category_id, price, stock, icon, description) VALUES
-('Ajax Hub 2 Plus Okos Riasztóközpont', 3, 124900, 12, 'fa-shield-halved', 'Ethernet, Wi-Fi és dual SIM támogatású központi egység.'),
-('Ajax MotionProtect Vezeték Nélküli Mozgásérzékelő', 4, 18900, 45, 'fa-sensor-on', 'Kisállat-védett infrás mozgásérzékelő.'),
-('Hikvision 4K IP Dome Kamera 30m IR', 6, 42500, 18, 'fa-video', 'Acusense ember/jármű megkülönböztetés, IP67 vízálló.'),
-('Schneider Electric 16A Kismegszakító (C16)', 9, 1490, 150, 'fa-bolt', 'B és C kioldási karakterisztikával lakossági elosztókhoz.'),
-('Wi-Fi Videó Kaputelefon Beltéri Egységgel', 12, 68900, 8, 'fa-door-closed', 'Mobiltelefonos kapunyitás és HD videókép.'),
-('Fi-Relé (Áram-védőkapcsoló) 40A 30mA', 10, 11200, 30, 'fa-plug', 'Életvédelmi relé családi házak védelméhez.');
+INSERT INTO products (name, category_id, price, stock, icon, image_url, description) VALUES
+('Ajax Hub 2 Plus Okos Riasztóközpont', 3, 124900, 12, 'fa-shield-halved', 'https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&w=800&q=80', 'Ethernet, Wi-Fi és dual SIM támogatású központi egység.'),
+('Ajax MotionProtect Vezeték Nélküli Mozgásérzékelő', 4, 18900, 45, 'fa-sensor-on', 'https://images.unsplash.com/photo-1585776245991-cf89dd7fc73a?auto=format&fit=crop&w=800&q=80', 'Kisállat-védett infrás mozgásérzékelő.'),
+('Hikvision 4K IP Dome Kamera 30m IR', 6, 42500, 18, 'fa-video', 'https://images.unsplash.com/photo-1557324232-b8917d3c3dcb?auto=format&fit=crop&w=800&q=80', 'Acusense ember/jármű megkülönböztetés, IP67 vízálló.'),
+('Schneider Electric 16A Kismegszakító (C16)', 9, 1490, 150, 'fa-bolt', 'https://images.unsplash.com/photo-1581091012184-7f4f4bcbf6b1?auto=format&fit=crop&w=800&q=80', 'B és C kioldási karakterisztikával lakossági elosztókhoz.'),
+('Wi-Fi Videó Kaputelefon Beltéri Egységgel', 12, 68900, 8, 'fa-door-closed', 'https://images.unsplash.com/photo-1616627455480-8c6366f75f1a?auto=format&fit=crop&w=800&q=80', 'Mobiltelefonos kapunyitás és HD videókép.'),
+('Fi-Relé (Áram-védőkapcsoló) 40A 30mA', 10, 11200, 30, 'fa-plug', 'https://images.unsplash.com/photo-1584277261846-c6a1672ed979?auto=format&fit=crop&w=800&q=80', 'Életvédelmi relé családi házak védelméhez.');
 
 INSERT INTO orders (user_id, total, status, created_at) VALUES
 (2, 143800, 'Feldolgozás alatt', '2026-03-18 10:15:00'),

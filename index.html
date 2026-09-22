@@ -635,6 +635,7 @@
                         <table class="w-full text-left text-sm text-slate-300">
                             <thead class="bg-slate-900 text-xs uppercase text-slate-400">
                                 <tr>
+                                    <th class="p-4">Kép</th>
                                     <th class="p-4">Termék</th>
                                     <th class="p-4">Kategória</th>
                                     <th class="p-4">Ár (Ft)</th>
@@ -830,6 +831,9 @@
                     <label class="block text-xs text-slate-300 mb-1">Jelszó</label>
                     <input type="password" id="login-password" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm" placeholder="••••••••">
                 </div>
+                <div class="text-right -mt-1">
+                    <button type="button" onclick="openForgotPasswordModal()" class="text-xs text-amber-400 hover:underline">Elfelejtette a jelszavát?</button>
+                </div>
                 <button type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">
                     Belépés
                 </button>
@@ -898,11 +902,62 @@
                     </div>
                 </div>
                 <div>
+                    <label class="block text-xs text-slate-300 mb-1">Kép URL (opcionális)</label>
+                    <input type="url" id="prod-image-url" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm" placeholder="https://...">
+                </div>
+                <div>
                     <label class="block text-xs text-slate-300 mb-1">Leírás</label>
                     <textarea id="prod-desc" rows="3" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm"></textarea>
                 </div>
                 <button type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">
                     Mentés Az Adatbázisba
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="forgot-password-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative space-y-4">
+            <button onclick="closeForgotPasswordModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl">&times;</button>
+            <h3 class="text-xl font-bold text-white">Elfelejtett jelszó</h3>
+
+            <form onsubmit="handleForgotPasswordRequest(event)" class="space-y-3">
+                <label class="block text-xs text-slate-300 mb-1">E-mail cím</label>
+                <input type="email" id="forgot-password-email" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm" placeholder="user@example.com">
+                <button type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">
+                    Reset kérés küldése
+                </button>
+                <p id="forgot-password-dev-info" class="text-xs text-amber-300 break-all"></p>
+            </form>
+
+            <div class="border-t border-slate-800 pt-4">
+                <form onsubmit="handleForgotPasswordReset(event)" class="space-y-3">
+                    <label class="block text-xs text-slate-300 mb-1">Reset token</label>
+                    <input type="text" id="forgot-password-token" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm" placeholder="Token">
+                    <label class="block text-xs text-slate-300 mb-1">Új jelszó (min. 8 karakter)</label>
+                    <input type="password" id="forgot-password-new" required minlength="8" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm" placeholder="••••••••">
+                    <button type="submit" class="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-colors">
+                        Új jelszó beállítása
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="user-password-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+            <button onclick="closeUserPasswordModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl">&times;</button>
+            <h3 class="text-xl font-bold text-white mb-2">Felhasználói jelszó módosítása</h3>
+            <p id="user-password-target" class="text-xs text-slate-400 mb-4"></p>
+            <form onsubmit="handleUserPasswordSubmit(event)" class="space-y-4">
+                <input type="hidden" id="user-password-id">
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">Új jelszó *</label>
+                    <input type="password" id="user-password-new" required minlength="8" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm" placeholder="Legalább 8 karakter">
+                </div>
+                <p id="user-password-error" class="text-xs text-rose-400 min-h-4"></p>
+                <button type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">
+                    Jelszó mentése
                 </button>
             </form>
         </div>
@@ -955,6 +1010,7 @@
     <script>
         const API = {
             auth: 'api/auth.php',
+            passwordReset: 'api/password-reset.php',
             users: 'api/users.php',
             categories: 'api/categories.php',
             products: 'api/products.php',
@@ -1239,8 +1295,9 @@
             container.innerHTML = filtered.map(p => `
                 <div class="bg-slate-800 border border-slate-700 hover:border-amber-500/50 rounded-2xl p-5 flex flex-col justify-between transition-all">
                     <div>
-                        <div class="w-full h-36 bg-slate-900 rounded-xl flex items-center justify-center text-4xl text-amber-400 mb-4 border border-slate-800">
-                            <i class="fa-solid ${esc(p.icon || 'fa-box')}"></i>
+                        <div class="w-full h-36 bg-slate-900 rounded-xl flex items-center justify-center text-4xl text-amber-400 mb-4 border border-slate-800 overflow-hidden">
+                            ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}" class="w-full h-full object-cover" onerror="this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden');">` : ''}
+                            <i class="fa-solid ${esc(p.icon || 'fa-box')} ${p.image_url ? 'hidden' : ''}"></i>
                         </div>
                         <span class="text-[10px] font-bold uppercase tracking-wider bg-slate-900 text-amber-400 px-2.5 py-1 rounded border border-slate-700">${esc(p.category_name || '')}</span>
                         <h4 class="font-bold text-white text-base mt-2">${esc(p.name)}</h4>
@@ -1561,6 +1618,12 @@
                 const table = document.getElementById('admin-products-table');
                 table.innerHTML = state.products.map(p => `
                     <tr class="hover:bg-slate-700/50">
+                        <td class="p-4">
+                            <div class="w-12 h-12 bg-slate-900 border border-slate-700 rounded-lg flex items-center justify-center overflow-hidden">
+                                ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}" class="w-full h-full object-cover" onerror="this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden');">` : ''}
+                                <i class="fa-solid ${esc(p.icon || 'fa-box')} text-amber-400 ${p.image_url ? 'hidden' : ''}"></i>
+                            </div>
+                        </td>
                         <td class="p-4 font-bold text-white">${esc(p.name)}</td>
                         <td class="p-4"><span class="bg-slate-900 text-amber-400 text-xs px-2 py-0.5 rounded border border-slate-700">${esc(p.category_name || '')}</span></td>
                         <td class="p-4 font-semibold">${Number(p.price).toLocaleString('hu-HU')} Ft</td>
@@ -1626,6 +1689,7 @@
                         <td class="p-4 text-xs text-slate-400">${esc(String(u.created_at).slice(0, 10))}</td>
                         <td class="p-4"><span class="text-xs ${Number(u.is_active) === 1 ? 'text-emerald-400' : 'text-rose-400'}">${Number(u.is_active) === 1 ? 'Aktív' : 'Tiltott'}</span></td>
                         <td class="p-4 text-right space-x-2">
+                            <button onclick="openUserPasswordModal(${u.id}, '${esc(String(u.name))}')" class="text-xs bg-amber-500/20 hover:bg-amber-500/30 px-2 py-1 rounded text-amber-300 border border-amber-500/30">Jelszó</button>
                             <button onclick="toggleUserStatus(${u.id}, ${Number(u.is_active) === 1 ? 0 : 1})" class="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-white">${Number(u.is_active) === 1 ? 'Tiltás' : 'Engedélyezés'}</button>
                             <button onclick="deleteUser(${u.id})" class="text-xs text-rose-400 hover:underline">Törlés</button>
                         </td>
@@ -1742,6 +1806,7 @@
                 document.getElementById('prod-price').value = p.price;
                 document.getElementById('prod-stock').value = p.stock;
                 document.getElementById('prod-icon').value = p.icon || 'fa-box';
+                document.getElementById('prod-image-url').value = p.image_url || '';
                 document.getElementById('prod-desc').value = p.desc || '';
             } else {
                 document.getElementById('product-modal').classList.remove('hidden');
@@ -1752,6 +1817,7 @@
                 document.getElementById('prod-price').value = '';
                 document.getElementById('prod-stock').value = 10;
                 document.getElementById('prod-icon').value = 'fa-box';
+                document.getElementById('prod-image-url').value = '';
                 document.getElementById('prod-desc').value = '';
             }
         }
@@ -1768,12 +1834,13 @@
             const price = parseInt(document.getElementById('prod-price').value, 10);
             const stock = parseInt(document.getElementById('prod-stock').value, 10);
             const icon = document.getElementById('prod-icon').value || 'fa-box';
+            const image_url = document.getElementById('prod-image-url').value.trim();
             const desc = document.getElementById('prod-desc').value;
 
             try {
                 await apiFetch(API.products, {
                     method: 'POST',
-                    body: JSON.stringify({ action: id ? 'update' : 'create', id: id || undefined, name, category_id, price, stock, icon, desc })
+                    body: JSON.stringify({ action: id ? 'update' : 'create', id: id || undefined, name, category_id, price, stock, icon, image_url, desc })
                 });
                 closeProductModal();
                 await Promise.all([loadProducts(), loadCategories()]);
@@ -1865,6 +1932,91 @@
                 showToast('Felhasználó törölve.');
             } catch (err) {
                 showToast(err.message);
+            }
+        }
+
+        function openForgotPasswordModal() {
+            document.getElementById('forgot-password-modal').classList.remove('hidden');
+            document.getElementById('forgot-password-dev-info').innerText = '';
+            const tokenFromUrl = new URLSearchParams(window.location.search).get('reset_token');
+            if (tokenFromUrl) {
+                document.getElementById('forgot-password-token').value = tokenFromUrl;
+            }
+        }
+
+        function closeForgotPasswordModal() {
+            document.getElementById('forgot-password-modal').classList.add('hidden');
+        }
+
+        async function handleForgotPasswordRequest(e) {
+            e.preventDefault();
+            const email = document.getElementById('forgot-password-email').value;
+            const devInfo = document.getElementById('forgot-password-dev-info');
+            devInfo.innerText = '';
+            try {
+                const data = await apiFetch(API.passwordReset, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'request', email })
+                });
+                if (data?.dev?.token) {
+                    document.getElementById('forgot-password-token').value = data.dev.token;
+                    devInfo.innerText = `Fejlesztői token: ${data.dev.token}`;
+                }
+                showToast(data.message || 'Reset kérés rögzítve.');
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        async function handleForgotPasswordReset(e) {
+            e.preventDefault();
+            const token = document.getElementById('forgot-password-token').value.trim();
+            const password = document.getElementById('forgot-password-new').value;
+            try {
+                const data = await apiFetch(API.passwordReset, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'reset', token, password })
+                });
+                closeForgotPasswordModal();
+                showToast(data.message || 'A jelszó frissítve.');
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        function openUserPasswordModal(userId, userName) {
+            document.getElementById('user-password-id').value = String(userId);
+            document.getElementById('user-password-target').innerText = `${userName} (#${userId})`;
+            document.getElementById('user-password-new').value = '';
+            document.getElementById('user-password-error').innerText = '';
+            document.getElementById('user-password-modal').classList.remove('hidden');
+        }
+
+        function closeUserPasswordModal() {
+            document.getElementById('user-password-modal').classList.add('hidden');
+        }
+
+        async function handleUserPasswordSubmit(e) {
+            e.preventDefault();
+            const id = Number(document.getElementById('user-password-id').value);
+            const password = document.getElementById('user-password-new').value;
+            const errorEl = document.getElementById('user-password-error');
+            errorEl.innerText = '';
+
+            if (!password || password.length < 8) {
+                errorEl.innerText = 'A jelszónak legalább 8 karakter hosszúnak kell lennie.';
+                return;
+            }
+
+            try {
+                await apiFetch(API.users, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'change_password', id, password })
+                });
+                closeUserPasswordModal();
+                showToast('Felhasználói jelszó sikeresen frissítve.');
+            } catch (err) {
+                errorEl.innerText = err.message || 'Hiba történt a jelszó mentésekor.';
             }
         }
 
