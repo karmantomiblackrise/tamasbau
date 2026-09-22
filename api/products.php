@@ -3,6 +3,39 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
 
+function build_children_map(array $categories): array
+{
+    $childrenMap = [];
+    foreach ($categories as $category) {
+        $parentId = $category['parent_id'] !== null ? (int) $category['parent_id'] : null;
+        if ($parentId === null) {
+            continue;
+        }
+        if (!isset($childrenMap[$parentId])) {
+            $childrenMap[$parentId] = [];
+        }
+        $childrenMap[$parentId][] = (int) $category['id'];
+    }
+    return $childrenMap;
+}
+
+function collect_descendant_ids(int $categoryId, array $childrenMap): array
+{
+    $descendants = [];
+    $stack = [$categoryId];
+    while ($stack) {
+        $current = array_pop($stack);
+        foreach ($childrenMap[$current] ?? [] as $childId) {
+            if (isset($descendants[$childId])) {
+                continue;
+            }
+            $descendants[$childId] = true;
+            $stack[] = $childId;
+        }
+    }
+    return array_map('intval', array_keys($descendants));
+}
+
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $payload = get_json_input();
 
@@ -17,8 +50,12 @@ if ($method === 'GET') {
     $args = [];
 
     if ($categoryId > 0) {
-        $sql .= ' AND p.category_id = ?';
-        $args[] = $categoryId;
+        $categoryRows = db()->query('SELECT id, parent_id FROM categories')->fetchAll();
+        $childrenMap = build_children_map($categoryRows);
+        $allowedCategoryIds = [$categoryId, ...collect_descendant_ids($categoryId, $childrenMap)];
+        $placeholders = implode(',', array_fill(0, count($allowedCategoryIds), '?'));
+        $sql .= " AND p.category_id IN ($placeholders)";
+        $args = array_merge($args, $allowedCategoryIds);
     }
 
     if ($search !== '') {

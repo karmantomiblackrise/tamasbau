@@ -543,6 +543,7 @@
                     </select>
                 </div>
             </div>
+            <div id="shop-category-breadcrumb" class="mb-6 text-xs text-slate-400"></div>
 
             <div class="grid lg:grid-cols-12 gap-6">
                 <aside class="lg:col-span-3">
@@ -658,12 +659,13 @@
                             <input type="hidden" id="cat-id">
                             <div>
                                 <label class="block text-xs text-slate-300 mb-1">Név *</label>
-                                <input type="text" id="cat-name" required class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                                <input type="text" id="cat-name" oninput="updateCategoryPathPreview()" required class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm">
                             </div>
                             <div>
                                 <label class="block text-xs text-slate-300 mb-1">Szülő kategória (opcionális)</label>
-                                <select id="cat-parent" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm"></select>
+                                <select id="cat-parent" onchange="updateCategoryPathPreview()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-sm"></select>
                             </div>
+                            <p id="cat-current-path" class="text-xs text-slate-400">Útvonal: —</p>
                             <button id="cat-submit-btn" type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">
                                 Kategória Mentése
                             </button>
@@ -875,17 +877,10 @@
                     <label class="block text-xs text-slate-300 mb-1">Termék Neve *</label>
                     <input type="text" id="prod-name" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm">
                 </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs text-slate-300 mb-1">Fő kategória</label>
-                        <select id="prod-main-category" onchange="syncProductSubcategories()" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm">
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs text-slate-300 mb-1">Alkategória</label>
-                        <select id="prod-category" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm">
-                        </select>
-                    </div>
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">Kategória *</label>
+                    <select id="prod-category" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm">
+                    </select>
                 </div>
                 <div>
                     <label class="block text-xs text-slate-300 mb-1">Ár (Ft) *</label>
@@ -1081,7 +1076,7 @@
             state.categories = data.categories || [];
             renderShopCategoryControls();
             populateCategoryParentSelect();
-            syncProductMainCategories();
+            syncProductCategoryOptions();
         }
 
         async function loadProducts() {
@@ -1232,29 +1227,92 @@
             return state.categories.find(c => c.id === id);
         }
 
+        function getCategoryPath(categoryId) {
+            const path = [];
+            const seen = new Set();
+            let currentId = Number(categoryId);
+            while (currentId > 0 && !seen.has(currentId)) {
+                seen.add(currentId);
+                const category = getCategoryById(currentId);
+                if (!category) break;
+                path.unshift(category);
+                currentId = category.parent_id ?? 0;
+            }
+            return path;
+        }
+
+        function getCategoryPathText(categoryId, separator = ' / ') {
+            const path = getCategoryPath(categoryId);
+            return path.map(c => c.name).join(separator);
+        }
+
+        function getCategoryDescendantIds(categoryId) {
+            const descendants = [];
+            const stack = [Number(categoryId)];
+            const seen = new Set();
+            while (stack.length) {
+                const currentId = stack.pop();
+                if (seen.has(currentId)) continue;
+                seen.add(currentId);
+                getCategoryChildren(currentId).forEach(child => {
+                    descendants.push(child.id);
+                    stack.push(child.id);
+                });
+            }
+            return descendants;
+        }
+
+        function renderShopCategoryBreadcrumb() {
+            const breadcrumb = document.getElementById('shop-category-breadcrumb');
+            if (!breadcrumb) return;
+            const selectedValue = document.getElementById('shop-category')?.value || state.activeShopCategoryId;
+            if (!selectedValue || selectedValue === 'all') {
+                breadcrumb.innerText = 'Kategória: Minden kategória';
+                return;
+            }
+            const pathText = getCategoryPathText(Number(selectedValue));
+            breadcrumb.innerText = pathText ? `Kategória: ${pathText}` : 'Kategória: Minden kategória';
+        }
+
         function renderShopCategoryControls() {
             const select = document.getElementById('shop-category');
             const tree = document.getElementById('shop-category-tree');
             if (!select || !tree) return;
 
             const roots = state.categories.filter(c => c.parent_id === null);
-            select.innerHTML = '<option value="all">Minden kategória</option>' + roots.map(root => {
-                const children = getCategoryChildren(root.id);
-                let group = `<option value="${root.id}">${esc(root.name)}</option>`;
-                group += children.map(child => `<option value="${child.id}">↳ ${esc(child.name)}</option>`).join('');
-                return group;
-            }).join('');
+            const optionRows = ['<option value="all">Minden kategória</option>'];
+            const addOptions = (category, depth) => {
+                const prefix = depth > 0 ? `${'—'.repeat(depth)} ` : '';
+                optionRows.push(`<option value="${category.id}">${prefix}${esc(category.name)}</option>`);
+                getCategoryChildren(category.id).forEach(child => addOptions(child, depth + 1));
+            };
+            roots.forEach(root => addOptions(root, 0));
+            select.innerHTML = optionRows.join('');
 
-            const active = String(state.activeShopCategoryId);
+            let active = String(state.activeShopCategoryId);
             select.value = active;
+            if (select.value !== active) {
+                state.activeShopCategoryId = 'all';
+                select.value = 'all';
+                active = 'all';
+            }
 
-            tree.innerHTML = `<button onclick="setShopCategory('all')" class="w-full text-left px-3 py-2 rounded-lg ${active === 'all' ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-900 text-slate-200 hover:bg-slate-700'}">Minden kategória</button>` + roots.map(root => {
-                const children = getCategoryChildren(root.id);
-                return `<div class="bg-slate-900 border border-slate-700 rounded-xl p-2">
-                    <button onclick="setShopCategory('${root.id}')" class="w-full text-left px-2 py-1.5 rounded ${active === String(root.id) ? 'bg-amber-500 text-slate-950 font-bold' : 'text-white hover:bg-slate-700'}">${esc(root.name)}</button>
-                    <div class="ml-2 mt-1 space-y-1">${children.map(child => `<button onclick="setShopCategory('${child.id}')" class="w-full text-left px-2 py-1 rounded text-xs ${active === String(child.id) ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-300 hover:bg-slate-700'}">${esc(child.name)}</button>`).join('')}</div>
+            const renderTreeButtons = (category, depth) => {
+                const indentStyle = depth > 0 ? `style="padding-left:${depth * 12}px"` : '';
+                const buttonClass = active === String(category.id)
+                    ? 'bg-amber-500 text-slate-950 font-bold'
+                    : (depth === 0 ? 'text-white hover:bg-slate-700' : 'text-slate-300 hover:bg-slate-700');
+                const childrenHtml = getCategoryChildren(category.id).map(child => renderTreeButtons(child, depth + 1)).join('');
+                return `<div class="space-y-1">
+                    <button onclick="setShopCategory('${category.id}')" ${indentStyle} class="w-full text-left px-2 py-1 rounded text-xs ${buttonClass}">${esc(category.name)}</button>
+                    ${childrenHtml}
                 </div>`;
-            }).join('');
+            };
+
+            tree.innerHTML = `<button onclick="setShopCategory('all')" class="w-full text-left px-3 py-2 rounded-lg ${active === 'all' ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-900 text-slate-200 hover:bg-slate-700'}">Minden kategória</button>`
+                + `<div class="mt-2 space-y-2">${roots.map(root => `<div class="bg-slate-900 border border-slate-700 rounded-xl p-2">${renderTreeButtons(root, 0)}</div>`).join('')}</div>`;
+
+            renderShopCategoryBreadcrumb();
         }
 
         function setShopCategory(id) {
@@ -1271,13 +1329,8 @@
             if (selectedValue === 'all') return true;
 
             const selectedId = Number(selectedValue);
-            if (productCategoryId === selectedId) return true;
-
-            const selected = getCategoryById(selectedId);
-            if (selected && selected.parent_id === null) {
-                return getCategoryChildren(selected.id).some(child => child.id === productCategoryId);
-            }
-            return false;
+            const allowed = new Set([selectedId, ...getCategoryDescendantIds(selectedId)]);
+            return allowed.has(productCategoryId);
         }
 
         function renderShopProducts() {
@@ -1299,7 +1352,7 @@
                             ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}" class="w-full h-full object-cover" onerror="this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden');">` : ''}
                             <i class="fa-solid ${esc(p.icon || 'fa-box')} ${p.image_url ? 'hidden' : ''}"></i>
                         </div>
-                        <span class="text-[10px] font-bold uppercase tracking-wider bg-slate-900 text-amber-400 px-2.5 py-1 rounded border border-slate-700">${esc(p.category_name || '')}</span>
+                        <span class="text-[10px] font-bold uppercase tracking-wider bg-slate-900 text-amber-400 px-2.5 py-1 rounded border border-slate-700">${esc(getCategoryPathText(Number(p.category_id)) || p.category_name || '')}</span>
                         <h4 class="font-bold text-white text-base mt-2">${esc(p.name)}</h4>
                         <p class="text-xs text-slate-400 mt-1 line-clamp-2">${esc(p.desc || '')}</p>
                     </div>
@@ -1701,28 +1754,64 @@
         function populateCategoryParentSelect() {
             const parentSelect = document.getElementById('cat-parent');
             if (!parentSelect) return;
+            const editingId = Number(document.getElementById('cat-id')?.value || 0);
+            const excluded = new Set(editingId > 0 ? [editingId, ...getCategoryDescendantIds(editingId)] : []);
+            const previousValue = parentSelect.value;
             const roots = state.categories.filter(c => c.parent_id === null);
-            parentSelect.innerHTML = '<option value="">Nincs (fő kategória)</option>' + roots.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+            const optionRows = ['<option value="">Nincs (fő kategória)</option>'];
+            const addOptions = (category, depth) => {
+                if (excluded.has(category.id)) return;
+                const prefix = depth > 0 ? `${'—'.repeat(depth)} ` : '';
+                const pathLabel = getCategoryPathText(category.id, ' / ');
+                optionRows.push(`<option value="${category.id}" title="${esc(pathLabel)}">${prefix}${esc(category.name)}</option>`);
+                getCategoryChildren(category.id).forEach(child => addOptions(child, depth + 1));
+            };
+            roots.forEach(root => addOptions(root, 0));
+            parentSelect.innerHTML = optionRows.join('');
+            if (previousValue && parentSelect.querySelector(`option[value="${previousValue}"]`)) {
+                parentSelect.value = previousValue;
+            }
+            updateCategoryPathPreview();
+        }
+
+        function updateCategoryPathPreview() {
+            const pathEl = document.getElementById('cat-current-path');
+            if (!pathEl) return;
+            const name = (document.getElementById('cat-name')?.value || '').trim();
+            const parentId = Number(document.getElementById('cat-parent')?.value || 0);
+            const parentPath = parentId > 0 ? getCategoryPathText(parentId) : '';
+            const fullPath = [parentPath, name].filter(Boolean).join(' / ');
+            pathEl.innerText = `Útvonal: ${fullPath || '—'}`;
         }
 
         function renderCategoryRows() {
             const table = document.getElementById('admin-categories-table');
             const roots = state.categories.filter(c => c.parent_id === null);
             const rows = [];
-            roots.forEach(root => {
-                rows.push(`<tr><td class="p-4 font-bold text-white">${esc(root.name)}</td><td class="p-4 text-xs text-amber-400">Fő kategória</td><td class="p-4 text-right space-x-2"><button onclick="editCategory(${root.id})" class="text-sky-400 hover:underline">Szerkeszt</button><button onclick="deleteCategory(${root.id})" class="text-rose-400 hover:underline">Töröl</button></td></tr>`);
-                getCategoryChildren(root.id).forEach(child => {
-                    rows.push(`<tr><td class="p-4 pl-8 text-slate-200">↳ ${esc(child.name)}</td><td class="p-4 text-xs text-slate-400">Alkategória</td><td class="p-4 text-right space-x-2"><button onclick="editCategory(${child.id})" class="text-sky-400 hover:underline">Szerkeszt</button><button onclick="deleteCategory(${child.id})" class="text-rose-400 hover:underline">Töröl</button></td></tr>`);
-                });
-            });
+            const addRows = (category, depth) => {
+                const prefix = depth > 0 ? `${'—'.repeat(depth)} ` : '';
+                const typeLabel = depth === 0 ? 'Fő kategória' : `${depth + 1}. szintű alkategória`;
+                rows.push(`<tr>
+                    <td class="p-4 ${depth > 0 ? 'text-slate-200' : 'font-bold text-white'}">
+                        <div>${esc(prefix + category.name)}</div>
+                        <div class="text-[11px] text-slate-500 mt-1">${esc(getCategoryPathText(category.id))}</div>
+                    </td>
+                    <td class="p-4 text-xs ${depth === 0 ? 'text-amber-400' : 'text-slate-400'}">${esc(typeLabel)}</td>
+                    <td class="p-4 text-right space-x-2"><button onclick="editCategory(${category.id})" class="text-sky-400 hover:underline">Szerkeszt</button><button onclick="deleteCategory(${category.id})" class="text-rose-400 hover:underline">Töröl</button></td>
+                </tr>`);
+                getCategoryChildren(category.id).forEach(child => addRows(child, depth + 1));
+            };
+            roots.forEach(root => addRows(root, 0));
             table.innerHTML = rows.join('');
         }
 
         function resetCategoryForm() {
             document.getElementById('cat-id').value = '';
             document.getElementById('cat-name').value = '';
+            populateCategoryParentSelect();
             document.getElementById('cat-parent').value = '';
             document.getElementById('cat-submit-btn').innerText = 'Kategória Mentése';
+            updateCategoryPathPreview();
         }
 
         async function handleCategoryFormSubmit(e) {
@@ -1750,8 +1839,10 @@
             if (!cat) return;
             document.getElementById('cat-id').value = cat.id;
             document.getElementById('cat-name').value = cat.name;
+            populateCategoryParentSelect();
             document.getElementById('cat-parent').value = cat.parent_id || '';
             document.getElementById('cat-submit-btn').innerText = 'Kategória Frissítése';
+            updateCategoryPathPreview();
         }
 
         async function deleteCategory(id) {
@@ -1766,26 +1857,21 @@
             }
         }
 
-        function syncProductMainCategories() {
-            const select = document.getElementById('prod-main-category');
+        function syncProductCategoryOptions() {
+            const select = document.getElementById('prod-category');
             if (!select) return;
+            const currentValue = select.value;
             const roots = state.categories.filter(c => c.parent_id === null);
-            select.innerHTML = roots.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
-            syncProductSubcategories();
-        }
-
-        function syncProductSubcategories() {
-            const main = document.getElementById('prod-main-category');
-            const sub = document.getElementById('prod-category');
-            if (!main || !sub) return;
-
-            const mainId = Number(main.value || 0);
-            const subs = getCategoryChildren(mainId);
-            sub.innerHTML = subs.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
-
-            if (!subs.length) {
-                const selectedMain = getCategoryById(mainId);
-                sub.innerHTML = selectedMain ? `<option value="${selectedMain.id}">${esc(selectedMain.name)}</option>` : '';
+            const optionRows = [];
+            const addOptions = (category, depth) => {
+                const prefix = depth > 0 ? `${'—'.repeat(depth)} ` : '';
+                optionRows.push(`<option value="${category.id}">${prefix}${esc(category.name)}</option>`);
+                getCategoryChildren(category.id).forEach(child => addOptions(child, depth + 1));
+            };
+            roots.forEach(root => addOptions(root, 0));
+            select.innerHTML = optionRows.join('');
+            if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
+                select.value = currentValue;
             }
         }
 
@@ -1794,14 +1880,10 @@
                 const p = state.products.find(x => x.id === prodId);
                 if (!p) return;
                 document.getElementById('product-modal').classList.remove('hidden');
-                syncProductMainCategories();
+                syncProductCategoryOptions();
                 document.getElementById('product-modal-title').innerText = 'Termék Szerkesztése';
                 document.getElementById('prod-id').value = p.id;
                 document.getElementById('prod-name').value = p.name;
-                const category = getCategoryById(Number(p.category_id));
-                const mainId = category?.parent_id || category?.id;
-                document.getElementById('prod-main-category').value = String(mainId || '');
-                syncProductSubcategories();
                 document.getElementById('prod-category').value = String(p.category_id);
                 document.getElementById('prod-price').value = p.price;
                 document.getElementById('prod-stock').value = p.stock;
@@ -1810,7 +1892,7 @@
                 document.getElementById('prod-desc').value = p.desc || '';
             } else {
                 document.getElementById('product-modal').classList.remove('hidden');
-                syncProductMainCategories();
+                syncProductCategoryOptions();
                 document.getElementById('product-modal-title').innerText = 'Új Termék Hozzáadása';
                 document.getElementById('prod-id').value = '';
                 document.getElementById('prod-name').value = '';

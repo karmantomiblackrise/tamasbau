@@ -16,18 +16,77 @@ function slugify(string $name): string
     return $slug !== '' ? $slug : 'kategoria';
 }
 
+function build_children_map(array $categories): array
+{
+    $childrenMap = [];
+    foreach ($categories as $category) {
+        $parentId = $category['parent_id'];
+        if ($parentId === null) {
+            continue;
+        }
+        if (!isset($childrenMap[$parentId])) {
+            $childrenMap[$parentId] = [];
+        }
+        $childrenMap[$parentId][] = (int) $category['id'];
+    }
+    return $childrenMap;
+}
+
+function collect_descendant_ids(int $categoryId, array $childrenMap): array
+{
+    $descendants = [];
+    $stack = [$categoryId];
+    while ($stack) {
+        $current = array_pop($stack);
+        foreach ($childrenMap[$current] ?? [] as $childId) {
+            if (isset($descendants[$childId])) {
+                continue;
+            }
+            $descendants[$childId] = true;
+            $stack[] = $childId;
+        }
+    }
+    return array_map('intval', array_keys($descendants));
+}
+
+function build_category_tree(array $categories): array
+{
+    $byId = [];
+    foreach ($categories as $category) {
+        $category['children'] = [];
+        $byId[(int) $category['id']] = $category;
+    }
+
+    $tree = [];
+    foreach ($byId as $id => &$category) {
+        $parentId = $category['parent_id'];
+        if ($parentId !== null && isset($byId[$parentId])) {
+            $byId[$parentId]['children'][] = &$category;
+            continue;
+        }
+        $tree[] = &$category;
+    }
+    unset($category);
+
+    return $tree;
+}
+
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $payload = get_json_input();
 
 if ($method === 'GET') {
-    $stmt = db()->query('SELECT id, name, slug, parent_id FROM categories ORDER BY parent_id IS NULL DESC, parent_id ASC, name ASC');
+    $stmt = db()->query('SELECT id, name, slug, parent_id FROM categories ORDER BY name ASC');
     $rows = array_map(static function (array $row): array {
         $row['id'] = (int) $row['id'];
         $row['parent_id'] = $row['parent_id'] !== null ? (int) $row['parent_id'] : null;
         return $row;
     }, $stmt->fetchAll());
 
-    send_json(['ok' => true, 'categories' => $rows]);
+    send_json([
+        'ok' => true,
+        'categories' => $rows,
+        'category_tree' => build_category_tree($rows),
+    ]);
 }
 
 require_admin();
@@ -42,11 +101,10 @@ if ($method === 'POST') {
             send_json(['ok' => false, 'error' => 'A kategória neve kötelező.'], 422);
         }
         if ($parentId !== null) {
-            $parentStmt = db()->prepare('SELECT id, parent_id FROM categories WHERE id = ? LIMIT 1');
+            $parentStmt = db()->prepare('SELECT id FROM categories WHERE id = ? LIMIT 1');
             $parentStmt->execute([$parentId]);
-            $parent = $parentStmt->fetch();
-            if (!$parent || $parent['parent_id'] !== null) {
-                send_json(['ok' => false, 'error' => 'Csak létező fő kategória lehet szülő.'], 422);
+            if (!$parentStmt->fetch()) {
+                send_json(['ok' => false, 'error' => 'A kiválasztott szülő kategória nem létezik.'], 422);
             }
         }
 
@@ -78,40 +136,21 @@ if ($method === 'POST') {
             send_json(['ok' => false, 'error' => 'A kategória nem lehet saját szülője.'], 422);
         }
         if ($parentId !== null) {
-            $parentStmt = db()->prepare('SELECT id, parent_id FROM categories WHERE id = ? LIMIT 1');
+            $parentStmt = db()->prepare('SELECT id FROM categories WHERE id = ? LIMIT 1');
             $parentStmt->execute([$parentId]);
-            $parent = $parentStmt->fetch();
-            if (!$parent || $parent['parent_id'] !== null) {
-                send_json(['ok' => false, 'error' => 'Csak létező fő kategória lehet szülő.'], 422);
+            if (!$parentStmt->fetch()) {
+                send_json(['ok' => false, 'error' => 'A kiválasztott szülő kategória nem létezik.'], 422);
             }
 
             $treeRows = db()->query('SELECT id, parent_id FROM categories')->fetchAll();
-            $childrenMap = [];
-            foreach ($treeRows as $row) {
-                $pid = $row['parent_id'] !== null ? (int) $row['parent_id'] : null;
-                if ($pid === null) {
-                    continue;
-                }
-                if (!isset($childrenMap[$pid])) {
-                    $childrenMap[$pid] = [];
-                }
-                $childrenMap[$pid][] = (int) $row['id'];
-            }
-
-            $descendants = [];
-            $stack = [$id];
-            while ($stack) {
-                $current = array_pop($stack);
-                foreach ($childrenMap[$current] ?? [] as $childId) {
-                    if (isset($descendants[$childId])) {
-                        continue;
-                    }
-                    $descendants[$childId] = true;
-                    $stack[] = $childId;
-                }
-            }
-
-            if (isset($descendants[$parentId])) {
+            $normalizedRows = array_map(static function (array $row): array {
+                return [
+                    'id' => (int) $row['id'],
+                    'parent_id' => $row['parent_id'] !== null ? (int) $row['parent_id'] : null,
+                ];
+            }, $treeRows);
+            $descendants = collect_descendant_ids($id, build_children_map($normalizedRows));
+            if (in_array($parentId, $descendants, true)) {
                 send_json(['ok' => false, 'error' => 'Körkörös kategória-hierarchia nem engedélyezett.'], 422);
             }
         }
@@ -154,13 +193,17 @@ if ($method === 'POST') {
             send_json(['ok' => false, 'error' => 'A kategóriának vannak alkategóriái.'], 422);
         }
 
-        if ($target['parent_id'] === null) {
-            $prodCheck = db()->prepare('SELECT COUNT(*) FROM products WHERE category_id = ? OR category_id IN (SELECT id FROM categories WHERE parent_id = ?)');
-            $prodCheck->execute([$id, $id]);
-        } else {
-            $prodCheck = db()->prepare('SELECT COUNT(*) FROM products WHERE category_id = ?');
-            $prodCheck->execute([$id]);
-        }
+        $treeRows = db()->query('SELECT id, parent_id FROM categories')->fetchAll();
+        $normalizedRows = array_map(static function (array $row): array {
+            return [
+                'id' => (int) $row['id'],
+                'parent_id' => $row['parent_id'] !== null ? (int) $row['parent_id'] : null,
+            ];
+        }, $treeRows);
+        $categoryIdsForProductCheck = [$id, ...collect_descendant_ids($id, build_children_map($normalizedRows))];
+        $placeholders = implode(',', array_fill(0, count($categoryIdsForProductCheck), '?'));
+        $prodCheck = db()->prepare("SELECT COUNT(*) FROM products WHERE category_id IN ($placeholders)");
+        $prodCheck->execute($categoryIdsForProductCheck);
         if ((int) $prodCheck->fetchColumn() > 0) {
             send_json(['ok' => false, 'error' => 'A kategóriához termék tartozik.'], 422);
         }

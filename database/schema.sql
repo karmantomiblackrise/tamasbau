@@ -29,7 +29,7 @@ CREATE TABLE categories (
   slug VARCHAR(150) NOT NULL UNIQUE,
   parent_id INT UNSIGNED NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL
+  CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
 CREATE TABLE products (
@@ -116,7 +116,11 @@ INSERT INTO categories (id, name, slug, parent_id) VALUES
 (7, 'Rögzítők', 'rogzitok', 5),
 (8, 'Villanyszerelés', 'villanyszereles', NULL),
 (9, 'Kismegszakítók', 'kismegszakitok', 8),
-(10, 'Védelmi eszközök', 'vedelmi-eszkozok', 8),
+(10, 'Fi-relék', 'fi-relek', 8),
+(13, 'Lakossági kismegszakítók', 'lakossagi-kismegszakitok', 9),
+(14, 'Ipari kismegszakítók', 'ipari-kismegszakitok', 9),
+(15, '1 fázisú Fi-relék', '1-fazisu-fi-relek', 10),
+(16, '3 fázisú Fi-relék', '3-fazisu-fi-relek', 10),
 (11, 'Okosotthon', 'okosotthon', NULL),
 (12, 'Kaputelefonok', 'kaputelefonok', 11);
 
@@ -124,9 +128,9 @@ INSERT INTO products (name, category_id, price, stock, icon, image_url, descript
 ('Ajax Hub 2 Plus Okos Riasztóközpont', 3, 124900, 12, 'fa-shield-halved', 'https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&w=800&q=80', 'Ethernet, Wi-Fi és dual SIM támogatású központi egység.'),
 ('Ajax MotionProtect Vezeték Nélküli Mozgásérzékelő', 4, 18900, 45, 'fa-sensor-on', 'https://images.unsplash.com/photo-1585776245991-cf89dd7fc73a?auto=format&fit=crop&w=800&q=80', 'Kisállat-védett infrás mozgásérzékelő.'),
 ('Hikvision 4K IP Dome Kamera 30m IR', 6, 42500, 18, 'fa-video', 'https://images.unsplash.com/photo-1557324232-b8917d3c3dcb?auto=format&fit=crop&w=800&q=80', 'Acusense ember/jármű megkülönböztetés, IP67 vízálló.'),
-('Schneider Electric 16A Kismegszakító (C16)', 9, 1490, 150, 'fa-bolt', 'https://images.unsplash.com/photo-1581091012184-7f4f4bcbf6b1?auto=format&fit=crop&w=800&q=80', 'B és C kioldási karakterisztikával lakossági elosztókhoz.'),
+('Schneider Electric 16A Kismegszakító (C16)', 13, 1490, 150, 'fa-bolt', 'https://images.unsplash.com/photo-1581091012184-7f4f4bcbf6b1?auto=format&fit=crop&w=800&q=80', 'B és C kioldási karakterisztikával lakossági elosztókhoz.'),
 ('Wi-Fi Videó Kaputelefon Beltéri Egységgel', 12, 68900, 8, 'fa-door-closed', 'https://images.unsplash.com/photo-1616627455480-8c6366f75f1a?auto=format&fit=crop&w=800&q=80', 'Mobiltelefonos kapunyitás és HD videókép.'),
-('Fi-Relé (Áram-védőkapcsoló) 40A 30mA', 10, 11200, 30, 'fa-plug', 'https://images.unsplash.com/photo-1584277261846-c6a1672ed979?auto=format&fit=crop&w=800&q=80', 'Életvédelmi relé családi házak védelméhez.');
+('Fi-Relé (Áram-védőkapcsoló) 40A 30mA', 15, 11200, 30, 'fa-plug', 'https://images.unsplash.com/photo-1584277261846-c6a1672ed979?auto=format&fit=crop&w=800&q=80', 'Életvédelmi relé családi házak védelméhez.');
 
 INSERT INTO orders (user_id, total, status, created_at) VALUES
 (2, 143800, 'Feldolgozás alatt', '2026-03-18 10:15:00'),

@@ -74,7 +74,20 @@ php -r "echo password_hash('SajatErősJelszo123!', PASSWORD_DEFAULT), PHP_EOL;"
 - Hibás vagy hiányzó URL esetén automatikus ikon fallback látható.
 - A `database/schema.sql` seed adatok működő publikus képlinkeket tartalmaznak.
 
-## 6) Futtatás helyben
+## 6) Korlátlan mélységű kategóriahierarchia
+
+- A `categories.parent_id` önhivatkozó idegen kulcs, így tetszőleges mélységű fa építhető.
+- A seed adatok tartalmaznak 3+ szintű példát:
+  - `Villanyszerelés / Kismegszakítók / Lakossági kismegszakítók`
+  - `Villanyszerelés / Fi-relék / 1 fázisú Fi-relék`
+- Törlési stratégia: a kategória nem törölhető, ha van közvetlen gyermeke vagy hozzá (illetve bármely leszármazottjához) termék tartozik. Az adatbázis szinten is `ON DELETE RESTRICT` védi ezt.
+- Ciklikus hierarchia tiltott: kategória szerkesztésnél nem állítható saját magára vagy saját leszármazottjára.
+- A `GET api/categories.php` válasz visszaadja:
+  - `categories`: flat lista `parent_id` mezővel
+  - `category_tree`: rekurzív nested fa `children` tömbökkel
+- Webshop szűrésnél szülő kategória kiválasztásakor az összes leszármazott kategória termékei is megjelennek.
+
+## 7) Futtatás helyben
 
 A repository gyökeréből indítsd:
 
@@ -84,12 +97,12 @@ php -S localhost:8000
 
 Ezután nyisd meg: `http://localhost:8000`
 
-## 7) API végpontok
+## 8) API végpontok
 
 - `api/auth.php` (regisztráció, login, logout, aktuális user)
 - `api/password-reset.php` (elfelejtett jelszó token kérés/ellenőrzés/reset)
 - `api/users.php` (admin user CRUD)
-- `api/categories.php` (kategória/alkategória CRUD)
+- `api/categories.php` (korlátlan mélységű kategóriafa CRUD + flat/tree lista)
 - `api/products.php` (termék CRUD)
 - `api/orders.php` (checkout + rendelés lista + státusz frissítés)
 - `api/quotes.php` (ajánlatkérés létrehozás + admin kezelés)
