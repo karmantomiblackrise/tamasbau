@@ -24,6 +24,7 @@ function sync_quote_to_lead(int $quoteId, string $name, string $email, string $p
         $timeline = db()->prepare('INSERT INTO lead_timeline (lead_id, actor_user_id, event_type, event_note, metadata_json) VALUES (?, NULL, ?, ?, ?)');
         $timeline->execute([$leadId, 'created', 'Automatikus lead létrehozás ajánlatkérésből.', json_encode(['quote_id' => $quoteId], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
     } catch (Throwable $e) {
+        error_log('Quote->Lead sync failed for quote #' . $quoteId . ': ' . $e->getMessage());
     }
 }
 

@@ -440,22 +440,27 @@ function post_crm(array $user, array $payload): void
         send_json(['ok' => true, 'warning' => $warning]);
     }
 
-    if ($action === 'pending_reminders') {
+    if ($action === 'pending_reminders' || $action === 'dispatch_pending_reminders') {
+        $dispatch = $action === 'dispatch_pending_reminders';
         $rows = [];
 
         $leadStmt = db()->query("SELECT id, name, email, next_follow_up_at FROM leads WHERE next_follow_up_at IS NOT NULL AND next_follow_up_at <= NOW() AND status NOT IN ('won','lost','archived') ORDER BY next_follow_up_at ASC LIMIT 100");
         foreach ($leadStmt->fetchAll() as $lead) {
             $rows[] = ['type' => 'lead_followup', 'id' => (int) $lead['id'], 'title' => $lead['name'], 'at' => $lead['next_follow_up_at']];
-            operations_create_notification(null, 'admin', 'Lejárt lead follow-up', 'Lead #' . (int) $lead['id'] . ' - ' . (string) $lead['name'], '/admin#leads');
+            if ($dispatch) {
+                operations_create_notification(null, 'admin', 'Lejárt lead follow-up', 'Lead #' . (int) $lead['id'] . ' - ' . (string) $lead['name'], '/admin#leads');
+            }
         }
 
         $quoteStmt = db()->query("SELECT id, title, next_action_at FROM crm_quotes WHERE next_action_at IS NOT NULL AND next_action_at <= NOW() AND status IN ('draft','sent','viewed') ORDER BY next_action_at ASC LIMIT 100");
         foreach ($quoteStmt->fetchAll() as $quote) {
             $rows[] = ['type' => 'quote_followup', 'id' => (int) $quote['id'], 'title' => $quote['title'], 'at' => $quote['next_action_at']];
-            operations_create_notification(null, 'admin', 'Ajánlat follow-up esedékes', 'Ajánlat #' . (int) $quote['id'] . ' - ' . (string) $quote['title'], '/admin#crm-quotes');
+            if ($dispatch) {
+                operations_create_notification(null, 'admin', 'Ajánlat follow-up esedékes', 'Ajánlat #' . (int) $quote['id'] . ' - ' . (string) $quote['title'], '/admin#crm-quotes');
+            }
         }
 
-        send_json(['ok' => true, 'pending' => $rows]);
+        send_json(['ok' => true, 'pending' => $rows, 'dispatched' => $dispatch]);
     }
 
     send_json(['ok' => false, 'error' => 'Nem támogatott CRM művelet.'], 405);
@@ -982,23 +987,26 @@ function post_appointments_endpoint(array $payload): void
         send_json(['ok' => true]);
     }
 
-    if ($action === 'pending_reminders') {
+    if ($action === 'pending_reminders' || $action === 'dispatch_pending_reminders') {
+        $dispatch = $action === 'dispatch_pending_reminders';
         $stmt = db()->query("SELECT a.id, a.title, a.starts_at, a.status, u.email, u.name FROM appointments a LEFT JOIN users u ON u.id = a.user_id WHERE a.status IN ('requested','confirmed','rescheduled') AND a.created_at <= DATE_SUB(NOW(), INTERVAL 30 MINUTE) AND a.starts_at >= NOW() AND a.starts_at <= DATE_ADD(NOW(), INTERVAL 24 HOUR) AND (a.reminder_sent_at IS NULL OR a.reminder_sent_at < DATE_SUB(NOW(), INTERVAL 12 HOUR)) ORDER BY a.starts_at ASC LIMIT 100");
         $pending = [];
         foreach ($stmt->fetchAll() as $row) {
             $pending[] = $row;
-            operations_create_notification(null, 'admin', 'Közelgő időpont emlékeztető', 'Időpont #' . (int) $row['id'] . ' - ' . ((string) $row['title'] ?: 'Nincs cím'), '/admin#appointments');
-            if (filter_var((string) ($row['email'] ?? ''), FILTER_VALIDATE_EMAIL)) {
-                $subject = 'Időpont emlékeztető';
-                $html = '<p>Tisztelt ' . htmlspecialchars((string) ($row['name'] ?? 'Ügyfelünk'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '!</p>'
-                    . '<p>Emlékeztető: időpontja ' . htmlspecialchars(date('Y-m-d H:i', strtotime((string) $row['starts_at'])), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . ' időpontra van rögzítve.</p>';
-                operations_mail_safely((string) $row['email'], (string) ($row['name'] ?? ''), $subject, $html);
-            }
+            if ($dispatch) {
+                operations_create_notification(null, 'admin', 'Közelgő időpont emlékeztető', 'Időpont #' . (int) $row['id'] . ' - ' . ((string) $row['title'] ?: 'Nincs cím'), '/admin#appointments');
+                if (filter_var((string) ($row['email'] ?? ''), FILTER_VALIDATE_EMAIL)) {
+                    $subject = 'Időpont emlékeztető';
+                    $html = '<p>Tisztelt ' . htmlspecialchars((string) ($row['name'] ?? 'Ügyfelünk'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '!</p>'
+                        . '<p>Emlékeztető: időpontja ' . htmlspecialchars(date('Y-m-d H:i', strtotime((string) $row['starts_at'])), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . ' időpontra van rögzítve.</p>';
+                    operations_mail_safely((string) $row['email'], (string) ($row['name'] ?? ''), $subject, $html);
+                }
 
-            $mark = db()->prepare('UPDATE appointments SET reminder_sent_at = NOW() WHERE id = ?');
-            $mark->execute([(int) $row['id']]);
+                $mark = db()->prepare('UPDATE appointments SET reminder_sent_at = NOW() WHERE id = ?');
+                $mark->execute([(int) $row['id']]);
+            }
         }
-        send_json(['ok' => true, 'pending' => $pending]);
+        send_json(['ok' => true, 'pending' => $pending, 'dispatched' => $dispatch]);
     }
 
     send_json(['ok' => false, 'error' => 'Nem támogatott időpont művelet.'], 405);
@@ -1295,12 +1303,15 @@ function list_files_endpoint(array $user): void
     }
 
     if (!$isAdmin) {
-        $where[] = '(pf.user_id = ? OR p.user_id = ? OR wo.user_id = ? OR wo.assigned_to_user_id = ? OR pwo.user_id = ?)';
-        $args[] = (int) $user['id'];
-        $args[] = (int) $user['id'];
-        $args[] = (int) $user['id'];
-        $args[] = (int) $user['id'];
-        $args[] = (int) $user['id'];
+        $uid = (int) $user['id'];
+        $role = (string) ($user['role'] ?? 'user');
+        if ($role === 'field_worker') {
+            $where[] = '(pf.user_id = ? OR p.user_id = ? OR wo.user_id = ? OR pwo.user_id = ? OR wo.assigned_to_user_id = ?)';
+            array_push($args, $uid, $uid, $uid, $uid, $uid);
+        } else {
+            $where[] = '(pf.user_id = ? OR p.user_id = ? OR wo.user_id = ? OR pwo.user_id = ?)';
+            array_push($args, $uid, $uid, $uid, $uid);
+        }
     }
 
     $sql = 'SELECT pf.id, pf.project_id, pf.work_order_id, pf.user_id, pf.category, pf.original_name, pf.storage_path, pf.mime_type, pf.file_size, pf.title, pf.description, pf.uploaded_by_user_id, pf.created_at,
