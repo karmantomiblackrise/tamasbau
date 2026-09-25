@@ -603,9 +603,9 @@ function list_work_orders_endpoint(array $user): void
 {
     $meOnly = clean_string($_GET['scope'] ?? '', 20) === 'me';
     if ($meOnly) {
-        require_login();
+        $user = require_login();
     } else {
-        require_operations_backoffice();
+        $user = require_operations_backoffice();
     }
 
     $id = (int) ($_GET['id'] ?? 0);
@@ -852,9 +852,9 @@ function list_appointments_endpoint(array $user): void
 {
     $isAdminView = clean_string($_GET['scope'] ?? '', 20) !== 'me';
     if ($isAdminView) {
-        require_operations_backoffice();
+        $user = require_operations_backoffice();
     } else {
-        require_login();
+        $user = require_login();
     }
 
     $where = [];
@@ -1232,7 +1232,7 @@ function post_service_endpoint(array $user, array $payload): void
             send_json(['ok' => false, 'error' => 'Csak lezárt ticket nyitható újra.'], 422);
         }
 
-        $update = db()->prepare('UPDATE service_tickets SET status = ?, closed_at = NULL WHERE id = ?');
+        $update = db()->prepare('UPDATE service_tickets SET status = ?, closed_at = NULL, reopened_until = NULL WHERE id = ?');
         $update->execute(['open', $ticketId]);
         insert_service_ticket_history($ticketId, (int) $user['id'], 'reopened', (string) $ticket['status'], 'open', null);
         operations_create_notification(null, 'admin', 'Ticket újranyitva', 'Ticket #' . $ticketId . ' újranyitva.', '/admin#service');
@@ -1389,7 +1389,7 @@ function list_dashboard_endpoint(): void
     $report = [
         'lead_conversion_rate' => (float) db()->query("SELECT IFNULL(ROUND((SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)) * 100, 2), 0) AS value FROM leads")->fetch()['value'],
         'quote_acceptance_rate' => (float) db()->query("SELECT IFNULL(ROUND((SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)) * 100, 2), 0) AS value FROM crm_quotes")->fetch()['value'],
-        'avg_project_cycle_days' => (float) db()->query("SELECT IFNULL(ROUND(AVG(DATEDIFF(COALESCE(planned_end_date, CURDATE()), COALESCE(planned_start_date, DATE(created_at)))), 2), 0) AS value FROM projects WHERE status IN ('completed','cancelled')")->fetch()['value'],
+        'avg_project_cycle_days' => (float) db()->query("SELECT IFNULL(ROUND(AVG(TIMESTAMPDIFF(DAY, created_at, updated_at)), 2), 0) AS value FROM projects WHERE status IN ('completed','cancelled')")->fetch()['value'],
         'avg_ticket_resolution_hours' => (float) db()->query("SELECT IFNULL(ROUND(AVG(TIMESTAMPDIFF(HOUR, created_at, COALESCE(closed_at, updated_at))), 2), 0) AS value FROM service_tickets WHERE status IN ('resolved','closed')")->fetch()['value'],
     ];
 
