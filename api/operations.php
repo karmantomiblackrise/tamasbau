@@ -961,7 +961,22 @@ function post_appointments_endpoint(array $payload): void
             send_json(['ok' => false, 'error' => 'Érvénytelen időpont.'], 422);
         }
 
-        $stmt = db()->prepare('UPDATE appointments SET appointment_type = ?, status = ?, starts_at = ?, ends_at = ?, assigned_to_user_id = ?, user_id = ?, lead_id = ?, project_id = ?, work_order_id = ?, title = ?, note = ?, location = ?, reminder_sent_at = NULL WHERE id = ?');
+        $existingStmt = db()->prepare('SELECT starts_at, ends_at FROM appointments WHERE id = ? LIMIT 1');
+        $existingStmt->execute([$id]);
+        $existing = $existingStmt->fetch();
+        if (!$existing) {
+            send_json(['ok' => false, 'error' => 'Időpont nem található.'], 404);
+        }
+        $resetReminder = $action === 'reschedule_appointment'
+            || (string) ($existing['starts_at'] ?? '') !== $startsAt
+            || (string) ($existing['ends_at'] ?? '') !== $endsAt;
+
+        $sql = 'UPDATE appointments SET appointment_type = ?, status = ?, starts_at = ?, ends_at = ?, assigned_to_user_id = ?, user_id = ?, lead_id = ?, project_id = ?, work_order_id = ?, title = ?, note = ?, location = ?';
+        if ($resetReminder) {
+            $sql .= ', reminder_sent_at = NULL';
+        }
+        $sql .= ' WHERE id = ?';
+        $stmt = db()->prepare($sql);
         $stmt->execute([$type, $status, $startsAt, $endsAt, $assignedTo, $userId, $leadId, $projectId, $workOrderId, $title !== '' ? $title : null, $note !== '' ? $note : null, $location !== '' ? $location : null, $id]);
         log_admin_activity((int) $admin['id'], 'appointment_updated', 'appointment', $id, ['status' => $status, 'type' => $type]);
         send_json(['ok' => true]);
@@ -1097,7 +1112,7 @@ function post_service_endpoint(array $user, array $payload): void
         }
 
         $stmt = db()->prepare('INSERT INTO service_tickets (user_id, project_id, work_order_id, subject, description, location, priority, status, warranty_active, warranty_start, warranty_end, installation_reference, assigned_to_user_id, sla_due_at, follow_up_at, reopened_until, closed_at, created_by_customer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        $closedAt = in_array($status, ['closed', 'rejected'], true) ? date('Y-m-d H:i:s') : null;
+        $closedAt = in_array($status, ['resolved', 'closed'], true) ? date('Y-m-d H:i:s') : null;
         $stmt->execute([$userId, $projectId, $workOrderId, $subject, $description, $location !== '' ? $location : null, $priority, $status, $warrantyActive, $warrantyStart, $warrantyEnd, $installationRef !== '' ? $installationRef : null, $assignedTo, $slaDueAt, $followUpAt, $reopenedUntil, $closedAt, $isAdmin ? 0 : 1]);
         $ticketId = (int) db()->lastInsertId();
 
@@ -1144,7 +1159,7 @@ function post_service_endpoint(array $user, array $payload): void
             $changes[] = 'status = ?';
             $args[] = $status;
             $changes[] = 'closed_at = ?';
-            $args[] = in_array($status, ['closed', 'rejected'], true) ? date('Y-m-d H:i:s') : null;
+            $args[] = in_array($status, ['resolved', 'closed'], true) ? date('Y-m-d H:i:s') : null;
         }
         if ($priority !== '') {
             require_enum_value($priority, service_ticket_priorities(), 'ticket prioritás');
@@ -1243,7 +1258,7 @@ function post_service_endpoint(array $user, array $payload): void
             }
         }
         if (!in_array((string) ($ticket['status'] ?? ''), ['resolved', 'closed'], true)) {
-            send_json(['ok' => false, 'error' => 'Csak lezárt ticket nyitható újra.'], 422);
+            send_json(['ok' => false, 'error' => 'Csak resolved vagy closed ticket nyitható újra.'], 422);
         }
 
         $update = db()->prepare('UPDATE service_tickets SET status = ?, closed_at = NULL, reopened_until = NULL WHERE id = ?');

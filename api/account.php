@@ -55,13 +55,13 @@ if ($method === 'GET') {
         $projects = $projectsStmt->fetchAll();
         $operationBadges['projects'] = count($projects);
 
-        $workOrdersStmt = db()->prepare('SELECT id, project_id, title, status, priority, due_at, updated_at FROM work_orders WHERE user_id = ? ORDER BY updated_at DESC LIMIT 50');
-        $workOrdersStmt->execute([$userId]);
+        $workOrdersStmt = db()->prepare('SELECT DISTINCT id, project_id, title, status, priority, due_at, updated_at FROM work_orders WHERE user_id = ? OR assigned_to_user_id = ? ORDER BY updated_at DESC LIMIT 50');
+        $workOrdersStmt->execute([$userId, $userId]);
         $workOrders = $workOrdersStmt->fetchAll();
         $operationBadges['work_orders'] = count(array_filter($workOrders, static fn(array $row): bool => in_array((string) ($row['status'] ?? ''), ['todo', 'in_progress', 'blocked'], true)));
 
-        $appointmentsStmt = db()->prepare('SELECT id, appointment_type, status, starts_at, ends_at, location FROM appointments WHERE user_id = ? ORDER BY starts_at DESC LIMIT 50');
-        $appointmentsStmt->execute([$userId]);
+        $appointmentsStmt = db()->prepare('SELECT DISTINCT id, appointment_type, status, starts_at, ends_at, location FROM appointments WHERE user_id = ? OR assigned_to_user_id = ? ORDER BY starts_at DESC LIMIT 50');
+        $appointmentsStmt->execute([$userId, $userId]);
         $appointments = $appointmentsStmt->fetchAll();
         $operationBadges['appointments'] = count(array_filter($appointments, static fn(array $row): bool => in_array((string) ($row['status'] ?? ''), ['requested', 'confirmed', 'rescheduled'], true)));
 
