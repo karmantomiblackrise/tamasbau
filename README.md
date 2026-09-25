@@ -82,6 +82,7 @@ mysql -u root -p tamasbau < database/migrations/20260922_support_chat_system.sql
 mysql -u root -p tamasbau < database/migrations/20260925_support_chat_lifecycle_updates.sql
 mysql -u root -p tamasbau < database/migrations/20260925_account_checkout_foundation.sql
 mysql -u root -p tamasbau < database/migrations/20260925_advanced_order_management.sql
+mysql -u root -p tamasbau < database/migrations/20260925_crm_project_service_suite.sql
 ```
 
 A `20260925_support_chat_lifecycle_updates.sql` migráció a korábbi support chat telepítést bővíti `closed` státusszal, külön admin/customer olvasatlan számlálókkal, archiválással (`deleted_at`) és utolsó admin/customer aktivitás időbélyegekkel.
@@ -379,3 +380,67 @@ Minden új SQL művelet prepared statementet használ.
 - `api/admin-analytics.php` – KPI + top termék/kategória + alacsony készlet + CSV export
 - `api/admin-activity.php` – admin aktivitási napló lekérés
 - `api/product-upload.php` – biztonságos admin termékkép-feltöltés (`uploads/products/`)
+
+## 15) CRM + projekt/munkalap + szerviz modul
+
+Új modulok egy egységes végponton érhetők el:
+
+- `api/operations.php?module=crm`
+  - Lead státuszok: `new`, `contacted`, `qualified`, `quote_sent`, `won`, `lost`, `archived`
+  - CRM ajánlat státuszok: `draft`, `sent`, `viewed`, `accepted`, `rejected`, `expired`, `cancelled`
+  - Műveletek: lead CRUD, státuszváltás, felelős-hozzárendelés, follow-up, idővonal, ajánlat státusznapló, adminból emlékeztető küldés, manuális pending-reminder futtatás (cron nélküli fallback)
+- `api/operations.php?module=projects`
+  - Projekt státuszok: `draft`, `survey_scheduled`, `quoted`, `approved`, `scheduled`, `in_progress`, `on_hold`, `completed`, `cancelled`
+  - Műveletek: projekt CRUD, státuszfrissítés, projekt idővonal
+- `api/operations.php?module=work_orders`
+  - Munkalap/feladat státuszok: `todo`, `in_progress`, `blocked`, `done`, `cancelled`
+  - Prioritás: `low`, `normal`, `high`, `urgent`
+  - Műveletek: munkalap CRUD, gyorsműveletek, feladatok, belső checklist
+- `api/operations.php?module=appointments`
+  - Típusok: `site_survey`, `troubleshooting`, `installation`, `maintenance`, `emergency`
+  - Státuszok: `requested`, `confirmed`, `rescheduled`, `completed`, `cancelled`, `no_show`
+  - Ütközésellenőrzés munkatárs + idősáv alapján, manuális pending reminder
+- `api/operations.php?module=service`
+  - Ticket státuszok: `open`, `triaged`, `scheduled`, `in_progress`, `waiting_customer`, `resolved`, `closed`, `rejected`
+  - Prioritás: `low`, `normal`, `high`, `emergency`
+  - Műveletek: ticket létrehozás (ügyfél/admin), üzenetek, státusz/hozzárendelés előzmények, belső megjegyzés, újranyitási időablak
+- `api/operations.php?module=files`
+  - Projekt/munkalap fájlfeltöltés (MIME + kiterjesztés + méret validáció, random fájlnév, scriptfuttatás tiltás)
+  - Kategóriák: `before`, `during`, `after`, `issue`, `document`
+- `api/operations.php?module=dashboard`
+  - KPI + alap riportok (lead konverzió, ajánlat elfogadás, projekt átfutás, ticket megoldási idő)
+- `api/operations.php?module=notifications`
+  - In-app notification center olvasatlan számlálóval
+
+`api/quotes.php` POST create művelet most automatikusan leadet hoz létre vagy meglévő leadhez kapcsolja az ajánlatkérést.
+
+## 16) Ügyfélportál bővítés
+
+`api/account.php` GET válasz bővült:
+
+- `projects`, `work_orders`, `appointments`, `service_tickets`, `documents`
+- `operations_notifications`
+- `operations_badges` (projektek/munkalapok/időpontok/nyitott ticketek/értesítések badge számláló)
+
+Minden lekérdezés ügyféloldalon user-id alapú adatszegmentálással történik.
+
+## 17) Jogosultsági mátrix (új szerepkörök)
+
+Támogatott szerepkörök: `superadmin`, `admin`, `project_manager`, `field_worker`, `service_agent`, `support_agent`, `quote_manager`, `content_manager`, `user`.
+
+- **Admin/backoffice műveletek**: `admin`, `superadmin`, `project_manager`, `service_agent`, `support_agent`, `quote_manager`
+- **Field worker**: alapvetően hozzárendelt munkalap/időpont lista és státuszfrissítés
+- **Ügyfél (`user`)**: saját projektek, munkalapok, időpontok, ticketek, dokumentumok, saját értesítések
+
+Minden mutáló művelet auth + CSRF védelemmel fut, prepared statementtel és admin audit loggal.
+
+## 18) Migrációk és cPanel fájlengedélyek
+
+- Új migráció: `database/migrations/20260925_crm_project_service_suite.sql`
+- Friss telepítéshez a `database/schema.sql` már tartalmazza az új CRM/projekt/szerviz táblákat és indexeket.
+- Fájlok:
+  - projektfájlok: `uploads/project-files/YYYY/MM/`
+  - `.htaccess` automatikusan létrejön scriptfuttatás- és indexelés-tiltással
+- Javasolt jogosultságok cPanelen:
+  - mappák: `0755` vagy `0775` (host policy szerint)
+  - feltöltési könyvtárak írhatóak a PHP processz számára

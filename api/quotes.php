@@ -3,6 +3,31 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
 
+function sync_quote_to_lead(int $quoteId, string $name, string $email, string $phone, string $message): void
+{
+    try {
+        $findLead = db()->prepare('SELECT id FROM leads WHERE email = ? AND (phone = ? OR phone IS NULL OR phone = \'\') AND status <> \'archived\' ORDER BY created_at DESC LIMIT 1');
+        $findLead->execute([$email, $phone]);
+        $lead = $findLead->fetch();
+        if ($lead) {
+            $leadId = (int) $lead['id'];
+            $update = db()->prepare('UPDATE leads SET quote_id = COALESCE(quote_id, ?), name = ?, phone = COALESCE(NULLIF(?, \'\'), phone), note = COALESCE(note, ?) WHERE id = ?');
+            $update->execute([$quoteId, $name, $phone, $message, $leadId]);
+            $timeline = db()->prepare('INSERT INTO lead_timeline (lead_id, actor_user_id, event_type, event_note, metadata_json) VALUES (?, NULL, ?, ?, ?)');
+            $timeline->execute([$leadId, 'quote_request_linked', 'Ajánlatkérés kapcsolva a leadhez.', json_encode(['quote_id' => $quoteId], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
+            return;
+        }
+
+        $insert = db()->prepare('INSERT INTO leads (quote_id, name, email, phone, source, note, status) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $insert->execute([$quoteId, $name, $email, $phone !== '' ? $phone : null, 'quote_request', $message !== '' ? $message : null, 'new']);
+        $leadId = (int) db()->lastInsertId();
+        $timeline = db()->prepare('INSERT INTO lead_timeline (lead_id, actor_user_id, event_type, event_note, metadata_json) VALUES (?, NULL, ?, ?, ?)');
+        $timeline->execute([$leadId, 'created', 'Automatikus lead létrehozás ajánlatkérésből.', json_encode(['quote_id' => $quoteId], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
+    } catch (Throwable $e) {
+        error_log('Quote->Lead sync failed for quote #' . $quoteId . ': ' . $e->getMessage());
+    }
+}
+
 function quote_list_item_payload(array $quote): array
 {
     return [
@@ -86,7 +111,9 @@ if ($method === 'POST' && ($action === '' || $action === 'create')) {
 
     $stmt = db()->prepare('INSERT INTO quotes (name, phone, email, work_type, message, status) VALUES (?, ?, ?, ?, ?, ?)');
     $stmt->execute([$name, $phone, $email, $workType, $message, 'new']);
-    send_json(['ok' => true, 'id' => (int) db()->lastInsertId()], 201);
+    $quoteId = (int) db()->lastInsertId();
+    sync_quote_to_lead($quoteId, $name, $email, $phone, $message);
+    send_json(['ok' => true, 'id' => $quoteId], 201);
 }
 
 if ($method === 'GET') {

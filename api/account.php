@@ -34,6 +34,61 @@ if ($method === 'GET') {
     $prefStmt->execute([$userId]);
     $preferences = $prefStmt->fetch() ?: ['order_emails' => 1, 'quote_emails' => 1, 'support_emails' => 1, 'marketing_emails' => 0];
 
+    $projects = [];
+    $workOrders = [];
+    $appointments = [];
+    $serviceTickets = [];
+    $documents = [];
+    $notifications = [];
+    $operationBadges = [
+        'projects' => 0,
+        'work_orders' => 0,
+        'appointments' => 0,
+        'service_tickets' => 0,
+        'documents' => 0,
+        'notifications_unread' => 0,
+    ];
+
+    try {
+        $projectsStmt = db()->prepare('SELECT id, title, status, project_type, planned_start_date, planned_end_date, updated_at FROM projects WHERE user_id = ? ORDER BY updated_at DESC LIMIT 50');
+        $projectsStmt->execute([$userId]);
+        $projects = $projectsStmt->fetchAll();
+        $operationBadges['projects'] = count($projects);
+
+        $workOrdersStmt = db()->prepare('SELECT DISTINCT id, project_id, title, status, priority, due_at, updated_at FROM work_orders WHERE user_id = ? OR assigned_to_user_id = ? ORDER BY updated_at DESC LIMIT 50');
+        $workOrdersStmt->execute([$userId, $userId]);
+        $workOrders = $workOrdersStmt->fetchAll();
+        $operationBadges['work_orders'] = count(array_filter($workOrders, static fn(array $row): bool => in_array((string) ($row['status'] ?? ''), ['todo', 'in_progress', 'blocked'], true)));
+
+        $appointmentsStmt = db()->prepare('SELECT DISTINCT id, appointment_type, status, starts_at, ends_at, location FROM appointments WHERE user_id = ? OR assigned_to_user_id = ? ORDER BY starts_at DESC LIMIT 50');
+        $appointmentsStmt->execute([$userId, $userId]);
+        $appointments = $appointmentsStmt->fetchAll();
+        $operationBadges['appointments'] = count(array_filter($appointments, static fn(array $row): bool => in_array((string) ($row['status'] ?? ''), ['requested', 'confirmed', 'rescheduled'], true)));
+
+        $serviceStmt = db()->prepare('SELECT id, subject, status, priority, follow_up_at, updated_at FROM service_tickets WHERE user_id = ? ORDER BY updated_at DESC LIMIT 50');
+        $serviceStmt->execute([$userId]);
+        $serviceTickets = $serviceStmt->fetchAll();
+        $operationBadges['service_tickets'] = count(array_filter($serviceTickets, static fn(array $row): bool => in_array((string) ($row['status'] ?? ''), ['open', 'triaged', 'scheduled', 'in_progress', 'waiting_customer'], true)));
+
+        $documentsStmt = db()->prepare('SELECT DISTINCT pf.id, pf.project_id, pf.work_order_id, pf.category, pf.original_name, pf.storage_path, pf.mime_type, pf.file_size, pf.created_at
+                                        FROM project_files pf
+                                        LEFT JOIN projects p ON p.id = pf.project_id
+                                        LEFT JOIN work_orders wo ON wo.id = pf.work_order_id
+                                        LEFT JOIN projects pwo ON pwo.id = wo.project_id
+                                        WHERE pf.user_id = ? OR p.user_id = ? OR wo.user_id = ? OR wo.assigned_to_user_id = ? OR pwo.user_id = ?
+                                        ORDER BY pf.created_at DESC
+                                        LIMIT 80');
+        $documentsStmt->execute([$userId, $userId, $userId, $userId, $userId]);
+        $documents = $documentsStmt->fetchAll();
+        $operationBadges['documents'] = count($documents);
+
+        $notificationsStmt = db()->prepare('SELECT id, title, message, link_url, is_read, created_at FROM in_app_notifications WHERE audience = ? AND (user_id IS NULL OR user_id = ?) ORDER BY created_at DESC LIMIT 50');
+        $notificationsStmt->execute(['user', $userId]);
+        $notifications = $notificationsStmt->fetchAll();
+        $operationBadges['notifications_unread'] = count(array_filter($notifications, static fn(array $row): bool => (int) ($row['is_read'] ?? 0) === 0));
+    } catch (Throwable $e) {
+    }
+
     send_json([
         'ok' => true,
         'account' => [
@@ -44,6 +99,13 @@ if ($method === 'GET') {
             'wishlist' => $wishlist,
             'addresses' => $addresses,
             'notification_preferences' => $preferences,
+            'projects' => $projects,
+            'work_orders' => $workOrders,
+            'appointments' => $appointments,
+            'service_tickets' => $serviceTickets,
+            'documents' => $documents,
+            'operations_notifications' => $notifications,
+            'operations_badges' => $operationBadges,
         ],
     ]);
 }
