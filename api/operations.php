@@ -753,6 +753,18 @@ function post_work_orders_endpoint(array $payload): void
         if ($id <= 0) {
             send_json(['ok' => false, 'error' => 'Érvénytelen munkalap.'], 422);
         }
+        $currentStatus = null;
+        $currentClosedAt = null;
+        if ($status !== '') {
+            $currentStmt = db()->prepare('SELECT status, closed_at FROM work_orders WHERE id = ? LIMIT 1');
+            $currentStmt->execute([$id]);
+            $current = $currentStmt->fetch();
+            if (!$current) {
+                send_json(['ok' => false, 'error' => 'Munkalap nem található.'], 404);
+            }
+            $currentStatus = (string) ($current['status'] ?? '');
+            $currentClosedAt = $current['closed_at'] ?? null;
+        }
 
         $changes = [];
         $args = [];
@@ -761,7 +773,9 @@ function post_work_orders_endpoint(array $payload): void
             $changes[] = 'status = ?';
             $args[] = $status;
             if (in_array($status, ['done', 'cancelled'], true)) {
-                $changes[] = 'closed_at = NOW()';
+                if (!in_array($currentStatus, ['done', 'cancelled'], true) || $currentClosedAt === null) {
+                    $changes[] = 'closed_at = NOW()';
+                }
             } else {
                 $changes[] = 'closed_at = NULL';
             }
@@ -947,7 +961,7 @@ function post_appointments_endpoint(array $payload): void
             send_json(['ok' => false, 'error' => 'Érvénytelen időpont.'], 422);
         }
 
-        $stmt = db()->prepare('UPDATE appointments SET appointment_type = ?, status = ?, starts_at = ?, ends_at = ?, assigned_to_user_id = ?, user_id = ?, lead_id = ?, project_id = ?, work_order_id = ?, title = ?, note = ?, location = ? WHERE id = ?');
+        $stmt = db()->prepare('UPDATE appointments SET appointment_type = ?, status = ?, starts_at = ?, ends_at = ?, assigned_to_user_id = ?, user_id = ?, lead_id = ?, project_id = ?, work_order_id = ?, title = ?, note = ?, location = ?, reminder_sent_at = NULL WHERE id = ?');
         $stmt->execute([$type, $status, $startsAt, $endsAt, $assignedTo, $userId, $leadId, $projectId, $workOrderId, $title !== '' ? $title : null, $note !== '' ? $note : null, $location !== '' ? $location : null, $id]);
         log_admin_activity((int) $admin['id'], 'appointment_updated', 'appointment', $id, ['status' => $status, 'type' => $type]);
         send_json(['ok' => true]);
@@ -1228,7 +1242,7 @@ function post_service_endpoint(array $user, array $payload): void
                 send_json(['ok' => false, 'error' => 'A ticket újranyitási ablaka lejárt.'], 422);
             }
         }
-        if (!in_array((string) ($ticket['status'] ?? ''), ['resolved', 'closed', 'rejected'], true)) {
+        if (!in_array((string) ($ticket['status'] ?? ''), ['resolved', 'closed'], true)) {
             send_json(['ok' => false, 'error' => 'Csak lezárt ticket nyitható újra.'], 422);
         }
 
@@ -1266,7 +1280,8 @@ function list_files_endpoint(array $user): void
     }
 
     if (!$isAdmin) {
-        $where[] = '(pf.user_id = ? OR p.user_id = ? OR wo.user_id = ? OR pwo.user_id = ?)';
+        $where[] = '(pf.user_id = ? OR p.user_id = ? OR wo.user_id = ? OR wo.assigned_to_user_id = ? OR pwo.user_id = ?)';
+        $args[] = (int) $user['id'];
         $args[] = (int) $user['id'];
         $args[] = (int) $user['id'];
         $args[] = (int) $user['id'];
