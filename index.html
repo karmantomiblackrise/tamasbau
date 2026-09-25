@@ -89,7 +89,7 @@
                 </nav>
 
                 <div class="flex items-center space-x-4">
-                    <button onclick="handleCartClick()" class="relative p-2.5 text-slate-300 hover:text-amber-400 hover:bg-slate-800 rounded-xl transition-all">
+                    <button id="header-cart-button" onclick="handleCartClick()" class="relative p-2.5 text-slate-300 hover:text-amber-400 hover:bg-slate-800 rounded-xl transition-all">
                         <i class="fa-solid fa-shopping-cart text-lg"></i>
                         <span id="cart-badge" class="absolute -top-1 -right-1 bg-amber-500 text-slate-950 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center hidden">0</span>
                         <span id="cart-lock-indicator" class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-slate-700 text-slate-200 text-[10px] items-center justify-center hidden"><i class="fa-solid fa-lock"></i></span>
@@ -2145,11 +2145,11 @@
                             <span class="text-xs text-slate-400 block">Raktáron: ${p.stock} db</span>
                             ${p.price_visible
                                 ? `<span class="text-lg font-black text-white">${Number(p.price).toLocaleString('hu-HU')} Ft</span>`
-                                : `<button type="button" onclick="requireAuthentication()" class="text-left text-sm font-semibold text-amber-400 hover:text-amber-300 flex items-center focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-slate-800 rounded-md"><i class="fa-solid fa-lock mr-2"></i>Az ár megtekintéséhez jelentkezzen be</button>`}
+                                : `<button type="button" onclick="requireAuthentication()" aria-haspopup="dialog" aria-controls="auth-required-modal" class="text-left text-sm font-semibold text-amber-400 hover:text-amber-300 flex items-center focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-slate-800 rounded-md"><i class="fa-solid fa-lock mr-2"></i>Az ár megtekintéséhez jelentkezzen be</button>`}
                         </div>
                         ${commerceEnabled
-                            ? `<button onclick="addToCart(${p.id})" aria-label="${esc(`${p.name} kosárba helyezése`)}" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-2.5 rounded-xl transition-colors"><i class="fa-solid fa-cart-plus"></i></button>`
-                            : `<button onclick="requireAuthentication()" aria-label="Bejelentkezés szükséges a kosár használatához" class="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold p-2.5 rounded-xl border border-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-slate-800"><i class="fa-solid fa-lock"></i></button>`}
+                            ? `<button type="button" onclick="addToCart(${p.id})" aria-label="${esc(`${p.name} kosárba helyezése`)}" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-2.5 rounded-xl transition-colors"><i class="fa-solid fa-cart-plus"></i></button>`
+                            : `<button type="button" onclick="requireAuthentication()" aria-label="Bejelentkezés szükséges a kosár használatához" aria-haspopup="dialog" aria-controls="auth-required-modal" class="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold p-2.5 rounded-xl border border-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-slate-800"><i class="fa-solid fa-lock"></i></button>`}
                     </div>
                 </div>
             `).join('') || `<p class="text-slate-400 text-sm col-span-full">Nincs találat a megadott szűrőkkel.</p>`;
@@ -2180,15 +2180,22 @@
         function updateCartBadge() {
             const badge = document.getElementById('cart-badge');
             const lockIndicator = document.getElementById('cart-lock-indicator');
+            const cartButton = document.getElementById('header-cart-button');
             if (!canUseCommerceFeatures()) {
                 badge.innerText = '0';
                 badge.classList.add('hidden');
                 lockIndicator.classList.remove('hidden');
                 lockIndicator.classList.add('flex');
+                cartButton?.setAttribute('aria-label', 'Bejelentkezés szükséges a kosár megnyitásához');
+                cartButton?.setAttribute('aria-haspopup', 'dialog');
+                cartButton?.setAttribute('aria-controls', 'auth-required-modal');
                 return;
             }
             lockIndicator.classList.remove('flex');
             lockIndicator.classList.add('hidden');
+            cartButton?.setAttribute('aria-label', 'Bevásárlókosár megnyitása');
+            cartButton?.setAttribute('aria-haspopup', 'dialog');
+            cartButton?.setAttribute('aria-controls', 'cart-modal');
             const totalQty = state.cart.reduce((sum, item) => sum + item.qty, 0);
             if (totalQty > 0) {
                 badge.innerText = totalQty;
