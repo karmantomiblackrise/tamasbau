@@ -1289,20 +1289,24 @@
             localStorage.removeItem('tb_cart');
         }
 
-        function closeAuthRequiredModal(resetPendingAction = true) {
+        function closeAuthRequiredModal(resetPendingAction = true, restoreFocus = true) {
             document.getElementById('auth-required-modal').classList.add('hidden');
             if (resetPendingAction) {
                 pendingProtectedAction = null;
             }
-            if (authRequiredTriggerElement && typeof authRequiredTriggerElement.focus === 'function') {
+            if (restoreFocus && authRequiredTriggerElement && typeof authRequiredTriggerElement.focus === 'function') {
                 authRequiredTriggerElement.focus();
             }
             authRequiredTriggerElement = null;
         }
 
         function openAuthFromPrompt(tab) {
-            closeAuthRequiredModal(false);
+            closeAuthRequiredModal(false, false);
             openAuthModal(tab);
+            setTimeout(() => {
+                const targetId = tab === 'register' ? 'reg-name' : 'login-email';
+                document.getElementById(targetId)?.focus();
+            }, 0);
         }
 
         function runPendingProtectedAction() {
@@ -1314,9 +1318,7 @@
 
         function requireAuthentication(action) {
             if (canUseCommerceFeatures()) return true;
-            if (typeof action === 'function' && pendingProtectedAction === null) {
-                pendingProtectedAction = action;
-            }
+            pendingProtectedAction = typeof action === 'function' ? action : null;
             const modal = document.getElementById('auth-required-modal');
             const wasHidden = modal.classList.contains('hidden');
             if (wasHidden) {
