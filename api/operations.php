@@ -69,6 +69,11 @@ function parse_date_nullable($value): ?string
 function operations_create_notification(?int $userId, string $audience, string $title, ?string $message = null, ?string $link = null): void
 {
     try {
+        $exists = db()->prepare('SELECT id FROM in_app_notifications WHERE audience = ? AND ((user_id IS NULL AND ? IS NULL) OR user_id = ?) AND title = ? AND ((message IS NULL AND ? IS NULL) OR message = ?) AND DATE(created_at) = CURDATE() LIMIT 1');
+        $exists->execute([$audience, $userId, $userId, clean_string($title, 160), $message, $message !== null ? clean_string($message, 1000) : null]);
+        if ($exists->fetch()) {
+            return;
+        }
         $stmt = db()->prepare('INSERT INTO in_app_notifications (user_id, audience, title, message, link_url) VALUES (?, ?, ?, ?, ?)');
         $stmt->execute([$userId, $audience, clean_string($title, 160), $message !== null ? clean_string($message, 1000) : null, $link !== null ? clean_string($link, 500) : null]);
     } catch (Throwable $e) {
@@ -612,9 +617,12 @@ function list_work_orders_endpoint(array $user): void
             send_json(['ok' => false, 'error' => 'Munkalap nem található.'], 404);
         }
 
-        if (!$meOnly && !is_operations_admin($user)) {
+        if ($meOnly || !is_operations_admin($user)) {
             $uid = (int) $user['id'];
-            if ($uid !== (int) ($workOrder['assigned_to_user_id'] ?? 0)) {
+            if (
+                $uid !== (int) ($workOrder['assigned_to_user_id'] ?? 0)
+                && $uid !== (int) ($workOrder['user_id'] ?? 0)
+            ) {
                 send_json(['ok' => false, 'error' => 'Nincs jogosultsága ehhez a munkalaphoz.'], 403);
             }
         }
@@ -929,7 +937,7 @@ function post_appointments_endpoint(array $payload): void
     }
 
     if ($action === 'pending_reminders') {
-        $stmt = db()->query("SELECT a.id, a.title, a.starts_at, a.status, u.email, u.name FROM appointments a LEFT JOIN users u ON u.id = a.user_id WHERE a.status IN ('requested','confirmed','rescheduled') AND a.starts_at <= DATE_ADD(NOW(), INTERVAL 24 HOUR) AND (a.reminder_sent_at IS NULL OR a.reminder_sent_at < DATE_SUB(NOW(), INTERVAL 12 HOUR)) ORDER BY a.starts_at ASC LIMIT 100");
+        $stmt = db()->query("SELECT a.id, a.title, a.starts_at, a.status, u.email, u.name FROM appointments a LEFT JOIN users u ON u.id = a.user_id WHERE a.status IN ('requested','confirmed','rescheduled') AND a.starts_at >= NOW() AND a.starts_at <= DATE_ADD(NOW(), INTERVAL 24 HOUR) AND (a.reminder_sent_at IS NULL OR a.reminder_sent_at < DATE_SUB(NOW(), INTERVAL 12 HOUR)) ORDER BY a.starts_at ASC LIMIT 100");
         $pending = [];
         foreach ($stmt->fetchAll() as $row) {
             $pending[] = $row;
@@ -1238,7 +1246,8 @@ function list_files_endpoint(array $user): void
     }
 
     if (!$isAdmin) {
-        $where[] = '(pf.user_id = ? OR p.user_id = ? OR wo.user_id = ?)';
+        $where[] = '(pf.user_id = ? OR p.user_id = ? OR wo.user_id = ? OR pwo.user_id = ?)';
+        $args[] = (int) $user['id'];
         $args[] = (int) $user['id'];
         $args[] = (int) $user['id'];
         $args[] = (int) $user['id'];
@@ -1249,6 +1258,7 @@ function list_files_endpoint(array $user): void
             FROM project_files pf
             LEFT JOIN projects p ON p.id = pf.project_id
             LEFT JOIN work_orders wo ON wo.id = pf.work_order_id
+            LEFT JOIN projects pwo ON pwo.id = wo.project_id
             LEFT JOIN users u ON u.id = pf.uploaded_by_user_id';
     if ($where) {
         $sql .= ' WHERE ' . implode(' AND ', $where);
@@ -1314,9 +1324,14 @@ function post_files_endpoint(array $user, array $payload): void
         send_json(['ok' => false, 'error' => 'A célmappa nem hozható létre.'], 500);
     }
 
-    $htaccessPath = dirname(__DIR__) . '/uploads/project-files/.htaccess';
+    $htaccessContent = "Options -Indexes\nphp_flag engine off\n<FilesMatch \"\\.(php|phtml|php3|php4|php5|phar)$\">\n  Deny from all\n</FilesMatch>\n";
+    $htaccessRootPath = dirname(__DIR__) . '/uploads/project-files/.htaccess';
+    if (!is_file($htaccessRootPath)) {
+        @file_put_contents($htaccessRootPath, $htaccessContent);
+    }
+    $htaccessPath = $baseDir . '/.htaccess';
     if (!is_file($htaccessPath)) {
-        @file_put_contents($htaccessPath, "Options -Indexes\nphp_flag engine off\n<FilesMatch \"\\.(php|phtml|php3|php4|php5|phar)$\">\n  Deny from all\n</FilesMatch>\n");
+        @file_put_contents($htaccessPath, $htaccessContent);
     }
 
     $safeName = bin2hex(random_bytes(16)) . '.' . $extension;
