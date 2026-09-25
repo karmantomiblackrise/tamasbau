@@ -40,6 +40,7 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $payload = get_json_input();
 
 if ($method === 'GET') {
+    $canViewPrice = current_user() !== null;
     $search = mb_strtolower(clean_string($_GET['search'] ?? '', 120));
     $categoryId = isset($_GET['category_id']) && $_GET['category_id'] !== '' ? (int) $_GET['category_id'] : 0;
 
@@ -75,7 +76,8 @@ if ($method === 'GET') {
             'category_id' => (int) $row['category_id'],
             'category_name' => $row['category_name'],
             'parent_id' => $row['parent_id'] !== null ? (int) $row['parent_id'] : null,
-            'price' => (int) $row['price'],
+            'price' => $canViewPrice ? (int) $row['price'] : null,
+            'price_visible' => $canViewPrice,
             'stock' => (int) $row['stock'],
             'icon' => $row['icon'] ?: 'fa-box',
             'image_url' => $row['image_url'] ?: '',

@@ -5,23 +5,21 @@ require_once __DIR__ . '/config.php';
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $payload = get_json_input();
-$user = current_user();
 
 if ($method === 'GET') {
+    $user = require_login();
     if ($user && ($user['role'] ?? 'user') === 'admin') {
         $stmt = db()->query('SELECT o.id, o.user_id, o.total, o.status, o.created_at, u.name AS user_name, u.email AS user_email
                              FROM orders o
                              LEFT JOIN users u ON u.id = o.user_id
                              ORDER BY o.created_at DESC');
-    } elseif ($user) {
+    } else {
         $stmt = db()->prepare('SELECT o.id, o.user_id, o.total, o.status, o.created_at, u.name AS user_name, u.email AS user_email
                                FROM orders o
                                LEFT JOIN users u ON u.id = o.user_id
                                WHERE o.user_id = ?
                                ORDER BY o.created_at DESC');
         $stmt->execute([(int) $user['id']]);
-    } else {
-        send_json(['ok' => true, 'orders' => []]);
     }
 
     $orderRows = $stmt->fetchAll();
