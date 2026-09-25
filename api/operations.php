@@ -983,7 +983,7 @@ function post_appointments_endpoint(array $payload): void
     }
 
     if ($action === 'pending_reminders') {
-        $stmt = db()->query("SELECT a.id, a.title, a.starts_at, a.status, u.email, u.name FROM appointments a LEFT JOIN users u ON u.id = a.user_id WHERE a.status IN ('requested','confirmed','rescheduled') AND a.starts_at >= NOW() AND a.starts_at <= DATE_ADD(NOW(), INTERVAL 24 HOUR) AND (a.reminder_sent_at IS NULL OR a.reminder_sent_at < DATE_SUB(NOW(), INTERVAL 12 HOUR)) ORDER BY a.starts_at ASC LIMIT 100");
+        $stmt = db()->query("SELECT a.id, a.title, a.starts_at, a.status, u.email, u.name FROM appointments a LEFT JOIN users u ON u.id = a.user_id WHERE a.status IN ('requested','confirmed','rescheduled') AND a.created_at <= DATE_SUB(NOW(), INTERVAL 30 MINUTE) AND a.starts_at >= NOW() AND a.starts_at <= DATE_ADD(NOW(), INTERVAL 24 HOUR) AND (a.reminder_sent_at IS NULL OR a.reminder_sent_at < DATE_SUB(NOW(), INTERVAL 12 HOUR)) ORDER BY a.starts_at ASC LIMIT 100");
         $pending = [];
         foreach ($stmt->fetchAll() as $row) {
             $pending[] = $row;
@@ -1322,7 +1322,7 @@ function list_files_endpoint(array $user): void
 
 function post_files_endpoint(array $user, array $payload): void
 {
-    require_operations_backoffice();
+    $user = require_operations_backoffice();
     $action = clean_string($payload['action'] ?? ($_POST['action'] ?? 'upload'), 40);
 
     if ($action !== 'upload') {

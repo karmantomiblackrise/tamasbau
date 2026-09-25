@@ -70,8 +70,15 @@ if ($method === 'GET') {
         $serviceTickets = $serviceStmt->fetchAll();
         $operationBadges['service_tickets'] = count(array_filter($serviceTickets, static fn(array $row): bool => in_array((string) ($row['status'] ?? ''), ['open', 'triaged', 'scheduled', 'in_progress', 'waiting_customer'], true)));
 
-        $documentsStmt = db()->prepare('SELECT id, project_id, work_order_id, category, original_name, storage_path, mime_type, file_size, created_at FROM project_files WHERE user_id = ? ORDER BY created_at DESC LIMIT 80');
-        $documentsStmt->execute([$userId]);
+        $documentsStmt = db()->prepare('SELECT DISTINCT pf.id, pf.project_id, pf.work_order_id, pf.category, pf.original_name, pf.storage_path, pf.mime_type, pf.file_size, pf.created_at
+                                        FROM project_files pf
+                                        LEFT JOIN projects p ON p.id = pf.project_id
+                                        LEFT JOIN work_orders wo ON wo.id = pf.work_order_id
+                                        LEFT JOIN projects pwo ON pwo.id = wo.project_id
+                                        WHERE pf.user_id = ? OR p.user_id = ? OR wo.user_id = ? OR wo.assigned_to_user_id = ? OR pwo.user_id = ?
+                                        ORDER BY pf.created_at DESC
+                                        LIMIT 80');
+        $documentsStmt->execute([$userId, $userId, $userId, $userId, $userId]);
         $documents = $documentsStmt->fetchAll();
         $operationBadges['documents'] = count($documents);
 
