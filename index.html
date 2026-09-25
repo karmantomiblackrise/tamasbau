@@ -1172,11 +1172,11 @@
                     <h3 id="auth-required-title" class="text-lg font-bold text-white flex items-center"><i class="fa-solid fa-lock mr-2 text-amber-400"></i> Bejelentkezés szükséges</h3>
                     <p class="text-sm text-slate-400 mt-1">Az árak és a kosár használatához jelentkezzen be vagy regisztráljon.</p>
                 </div>
-                <button id="auth-required-close-btn" onclick="closeAuthRequiredModal()" aria-label="Hitelesítési felhívás bezárása" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+                <button type="button" id="auth-required-close-btn" onclick="closeAuthRequiredModal()" aria-label="Hitelesítési felhívás bezárása" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
             </div>
             <div class="grid grid-cols-2 gap-3">
-                <button onclick="openAuthFromPrompt('login')" class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">Bejelentkezés</button>
-                <button onclick="openAuthFromPrompt('register')" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl border border-slate-700 transition-colors">Regisztráció</button>
+                <button type="button" onclick="openAuthFromPrompt('login')" class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">Bejelentkezés</button>
+                <button type="button" onclick="openAuthFromPrompt('register')" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl border border-slate-700 transition-colors">Regisztráció</button>
             </div>
         </div>
     </div>
@@ -2145,7 +2145,7 @@
                             <span class="text-xs text-slate-400 block">Raktáron: ${p.stock} db</span>
                             ${p.price_visible
                                 ? `<span class="text-lg font-black text-white">${Number(p.price).toLocaleString('hu-HU')} Ft</span>`
-                                : `<button onclick="requireAuthentication()" aria-label="Bejelentkezés szükséges az ár megtekintéséhez" class="text-left text-sm font-semibold text-amber-400 hover:text-amber-300 flex items-center"><i class="fa-solid fa-lock mr-2"></i>Az ár megtekintéséhez jelentkezzen be</button>`}
+                                : `<button type="button" onclick="requireAuthentication()" aria-label="Bejelentkezés szükséges az ár megtekintéséhez" class="text-left text-sm font-semibold text-amber-400 hover:text-amber-300 flex items-center"><i class="fa-solid fa-lock mr-2"></i>Az ár megtekintéséhez jelentkezzen be</button>`}
                         </div>
                         ${commerceEnabled
                             ? `<button onclick="addToCart(${p.id})" aria-label="${esc(`${p.name} kosárba helyezése`)}" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-2.5 rounded-xl transition-colors"><i class="fa-solid fa-cart-plus"></i></button>`
@@ -2199,7 +2199,7 @@
         }
 
         function handleCartClick() {
-            if (!requireAuthentication(() => toggleCartModal())) {
+            if (!requireAuthentication()) {
                 return;
             }
             toggleCartModal();
