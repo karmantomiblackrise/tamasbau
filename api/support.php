@@ -9,6 +9,7 @@ $payload = get_json_input();
 if ($method === 'POST') {
     validate_csrf_token();
 
+    $action = clean_string((string) ($payload['action'] ?? 'create'), 40);
     $sessionUser = current_user();
     $name = clean_string((string) ($payload['name'] ?? ($sessionUser['name'] ?? '')), 120);
     $email = clean_string((string) ($payload['email'] ?? ($sessionUser['email'] ?? '')), 190);
@@ -18,6 +19,19 @@ if ($method === 'POST') {
     if ($sessionUser) {
         $name = clean_string((string) ($sessionUser['name'] ?? $name), 120);
         $email = clean_string((string) ($sessionUser['email'] ?? $email), 190);
+    }
+
+    if ($action === 'mark_read') {
+        if ($chatId <= 0 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            send_json(['ok' => false, 'error' => 'Érvényes e-mail cím és support chat azonosító szükséges.'], 422);
+        }
+
+        $chat = support_mark_chat_read($chatId, 'customer', $email);
+        if ($chat === null) {
+            send_json(['ok' => false, 'error' => 'Support chat nem található.'], 404);
+        }
+
+        send_json(['ok' => true, 'chat' => $chat]);
     }
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $message === '') {

@@ -71,15 +71,17 @@ A séma már tartalmazza:
 - `quotes.admin_reply`, `quotes.replied_at`
 - `quote_replies` előzménytábla indexekkel és idegen kulcsokkal
 - `support_chats` és `support_messages` táblák indexelt support inbox struktúrával
+- teljes support lifecycle mezők: `status`, `admin_unread_count`, `customer_unread_count`, `last_customer_message_at`, `last_admin_message_at`, `deleted_at`
 
 ### Meglévő adatbázis frissítése (újrafuttatható migráció)
 
 ```bash
 mysql -u root -p tamasbau < database/migrations/20260922_quote_reply_system.sql
 mysql -u root -p tamasbau < database/migrations/20260922_support_chat_system.sql
+mysql -u root -p tamasbau < database/migrations/20260925_support_chat_lifecycle_updates.sql
 ```
 
-A migráció ellenőrzi a mezők és indexek meglétét, ezért meglévő környezeten ismételten is futtatható.
+A `20260925_support_chat_lifecycle_updates.sql` migráció a korábbi support chat telepítést bővíti `closed` státusszal, külön admin/customer olvasatlan számlálókkal, archiválással (`deleted_at`) és utolsó admin/customer aktivitás időbélyegekkel.
 
 ## 4) Helyi futtatás
 
@@ -175,19 +177,58 @@ Az admin **Ajánlatkérések** tabon elérhető:
 - Vendégként is használható, de bejelentkezett felhasználónál a widget automatikusan a profil `name` + `email` adatait használja.
 - Kötelező mezők: e-mail cím és üzenet.
 - A widget az e-mail cím alapján visszatölti a legutóbbi support beszélgetést és annak admin válaszait.
+- A widget polling alapon frissít (20 mp), badge-et és toastot mutat, ha új admin válasz érkezik.
+- Megnyitáskor a customer oldali `mark-read` hívás lenullázza a `customer_unread_count` mezőt.
 - A kliensoldali chat renderelés minden support szöveget escape-elve ír a DOM-ba.
+
+### Support státusz workflow
+
+- Támogatott státuszok:
+  - `new` – új ügyfélüzenet, még nem került aktív feldolgozásba
+  - `open` – folyamatban lévő support egyeztetés
+  - `resolved` – megoldottként jelölt beszélgetés
+  - `closed` – lezárt beszélgetés
+- Engedélyezett szerveroldali átmenetek:
+  - `new` → `open|resolved|closed`
+  - `open` → `resolved|closed`
+  - `resolved` → `open|closed`
+  - `closed` → `open`
+- Ha az ügyfél visszaír egy `resolved` vagy `closed` beszélgetésbe, a chat automatikusan `open` státuszra vált.
 
 ### Admin support inbox
 
 Az admin **Support Chat** tabon elérhető:
 
-- beszélgetéslista ügyfél névvel, e-maillel, státusszal, utolsó aktivitással és olvasatlan számlálóval
+- beszélgetéslista ügyfél névvel, e-maillel, státusszal, utolsó aktivitással és admin oldali olvasatlan számlálóval
 - modern modal nézet bal/jobb oldali üzenet buborékokkal
-- admin válasz írása, státuszváltás (`new`, `open`, `resolved`)
-- automatikus olvasatlannak-jelölt support üzenetkezelés
+- admin válasz írása, státuszváltás (`new`, `open`, `resolved`, `closed`)
+- gyorsgombok: **Megoldottnak jelölés**, **Lezárás**, **Újranyitás**, **Archiválás**
+- szűrés aktív / archivált / összes beszélgetésre
+- automatikus olvasatlannak-jelölt support üzenetkezelés admin és customer oldalra külön számlálóval
+- admin polling badge és dashboard KPI az új customer válaszokra
 - overview KPI-kártyák:
   - `Új Support Üzenetek`
   - `Nyitott Support Chatek`
+
+### Olvasatlan számlálók
+
+- `admin_unread_count`: customer üzenetnél nő, admin megnyitás/`mark_read` esetén nullázódik.
+- `customer_unread_count`: admin válasznál nő, customer widget megnyitás/`mark_read` esetén nullázódik.
+- `last_customer_message_at` és `last_admin_message_at` külön menti az utolsó kétoldali aktivitást.
+- A régi `unread_count` mező továbbra is az admin oldali számlálóval együtt frissül a visszafelé kompatibilitás miatt.
+
+### Archiválás / soft delete
+
+- A support chat nem hard delete-tel, hanem `deleted_at` soft delete mezővel archiválódik.
+- Az admin lista alapértelmezetten nem mutatja az archivált elemeket.
+- Archiválni csak `resolved` vagy `closed` státuszú beszélgetést lehet.
+- Archivált beszélgetés szükség esetén visszaállítható az admin listából.
+
+### Opcionális e-mail értesítés
+
+- Ha SMTP be van állítva, customer új üzenetnél admin értesítő e-mail megy az aktív admin fiókokra.
+- Ha SMTP be van állítva, admin válasznál customer értesítő e-mail megy a chathez tartozó e-mail címre.
+- Ha SMTP nincs beállítva, a support flow nem törik el: a rendszer kezelt figyelmeztetést naplóz, de a chat és az üzenet mentése sikeres marad.
 
 ### Support API-k
 
@@ -195,11 +236,13 @@ Mivel a projekt meglévő szerkezete file-alapú PHP endpointokat használ, a su
 
 - `POST api/support.php` – publikus új support üzenet / chat létrehozása vagy meglévő beszélgetéshez új ügyfélüzenet mentése
 - `GET api/support.php?email=...&chat_id=...` – publikus beszélgetés lekérése
-- `GET api/support-chats.php` – admin support chat lista
+- `POST api/support.php` (`action=mark_read`) – customer oldali olvasatlan jelölés törlése
+- `GET api/support-chats.php?scope=active|archived|all` – admin support chat lista + summary
 - `GET api/support-chats.php?id={ID}` – admin support chat részletek + üzenetek
 - `POST api/support-chats.php` (`action=reply`) – admin válasz küldése
-- `POST api/support-chats.php` (`action=mark_read`) – olvasatlan jelölés törlése
-- `POST api/support-chats.php` (`action=update_status`) – státuszfrissítés
+- `POST api/support-chats.php` (`action=mark_read`) – admin oldali olvasatlan jelölés törlése
+- `POST api/support-chats.php` (`action=update_status`) – státuszfrissítés átmenet-validációval
+- `POST api/support-chats.php` (`action=archive|restore|delete`) – archiválás / visszaállítás soft delete alapon
 
 Minden új SQL művelet prepared statementet használ.
 

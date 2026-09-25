@@ -112,14 +112,22 @@ CREATE TABLE support_chats (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_name VARCHAR(120) NULL,
   user_email VARCHAR(190) NOT NULL,
-  status ENUM('new', 'open', 'resolved') NOT NULL DEFAULT 'new',
+  status ENUM('new', 'open', 'resolved', 'closed') NOT NULL DEFAULT 'new',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   last_message_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_customer_message_at TIMESTAMP NULL DEFAULT NULL,
+  last_admin_message_at TIMESTAMP NULL DEFAULT NULL,
+  admin_unread_count INT UNSIGNED NOT NULL DEFAULT 0,
+  customer_unread_count INT UNSIGNED NOT NULL DEFAULT 0,
   unread_count INT UNSIGNED NOT NULL DEFAULT 0,
+  deleted_at DATETIME NULL,
   INDEX idx_support_chats_status_last_message (status, last_message_at),
   INDEX idx_support_chats_email_updated (user_email, updated_at),
-  INDEX idx_support_chats_unread (unread_count, last_message_at)
+  INDEX idx_support_chats_unread (unread_count, last_message_at),
+  INDEX idx_support_chats_admin_unread (admin_unread_count, last_message_at),
+  INDEX idx_support_chats_customer_unread (customer_unread_count, last_message_at),
+  INDEX idx_support_chats_deleted_at (deleted_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE support_messages (
@@ -195,9 +203,12 @@ INSERT INTO quotes (name, phone, email, work_type, message, status, admin_reply,
 INSERT INTO quote_replies (quote_id, admin_user_id, reply_message, created_at) VALUES
 (2, 1, 'Köszönjük a megkeresést, 24 órán belül küldjük a részletes ajánlatot.', '2026-03-20 15:30:00');
 
-INSERT INTO support_chats (id, user_name, user_email, status, created_at, updated_at, last_message_at, unread_count) VALUES
-(1, 'Kovács Júlia', 'kovacs.julia@example.hu', 'new', '2026-03-21 10:05:00', '2026-03-21 10:05:00', '2026-03-21 10:05:00', 1),
-(2, 'Fekete András', 'fekete.andras@example.hu', 'open', '2026-03-20 16:20:00', '2026-03-20 17:05:00', '2026-03-20 17:05:00', 0);
+INSERT INTO support_chats (
+  id, user_name, user_email, status, created_at, updated_at, last_message_at,
+  last_customer_message_at, last_admin_message_at, admin_unread_count, customer_unread_count, unread_count, deleted_at
+) VALUES
+(1, 'Kovács Júlia', 'kovacs.julia@example.hu', 'new', '2026-03-21 10:05:00', '2026-03-21 10:05:00', '2026-03-21 10:05:00', '2026-03-21 10:05:00', NULL, 1, 0, 1, NULL),
+(2, 'Fekete András', 'fekete.andras@example.hu', 'open', '2026-03-20 16:20:00', '2026-03-20 17:05:00', '2026-03-20 17:05:00', '2026-03-20 16:20:00', '2026-03-20 17:05:00', 0, 1, 0, NULL);
 
 INSERT INTO support_messages (chat_id, sender_type, sender_name, sender_email, message, created_at) VALUES
 (1, 'customer', 'Kovács Júlia', 'kovacs.julia@example.hu', 'Jó estét! A lakásomban időnként lever a biztosíték, tudnának visszahívni?', '2026-03-21 10:05:00'),

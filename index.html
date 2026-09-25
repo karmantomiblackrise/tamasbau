@@ -772,9 +772,16 @@
                         <h3 class="text-xl font-bold text-white">Support Chat Inbox</h3>
                         <p class="text-sm text-slate-400 mt-1">Modern support beszélgetések olvasatlan jelzésekkel, státuszkezeléssel és inline admin válaszokkal.</p>
                     </div>
-                    <button onclick="loadSupportChats().then(() => renderAdminTab('support'))" class="self-start px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-slate-200 text-sm hover:bg-slate-800">
-                        <i class="fa-solid fa-rotate mr-1.5"></i> Frissítés
-                    </button>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <select id="support-scope-filter" onchange="handleSupportScopeChange(this.value)" class="self-start px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-slate-200 text-sm">
+                            <option value="active">Aktív beszélgetések</option>
+                            <option value="archived">Archivált beszélgetések</option>
+                            <option value="all">Összes beszélgetés</option>
+                        </select>
+                        <button onclick="loadSupportChats().then(() => renderAdminTab('support'))" class="self-start px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-slate-200 text-sm hover:bg-slate-800">
+                            <i class="fa-solid fa-rotate mr-1.5"></i> Frissítés
+                        </button>
+                    </div>
                 </div>
                 <div class="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
                     <div class="overflow-x-auto">
@@ -1128,6 +1135,12 @@
                     <label class="block text-xs text-slate-300 mb-1">Admin válasz</label>
                     <textarea id="support-chat-modal-reply" rows="5" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm" placeholder="Írjon professzionális választ az ügyfélnek..."></textarea>
                 </div>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" onclick="updateSelectedSupportChatStatus('resolved')" class="px-3 py-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-200 text-sm hover:bg-emerald-500/20">Megoldottnak jelölés</button>
+                    <button type="button" onclick="updateSelectedSupportChatStatus('closed')" class="px-3 py-2 rounded-xl border border-slate-600 bg-slate-800 text-slate-100 text-sm hover:bg-slate-700">Lezárás</button>
+                    <button type="button" onclick="updateSelectedSupportChatStatus('open')" class="px-3 py-2 rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-200 text-sm hover:bg-sky-500/20">Újranyitás</button>
+                    <button type="button" onclick="toggleSupportChatArchive(true)" class="px-3 py-2 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-200 text-sm hover:bg-rose-500/20">Archiválás</button>
+                </div>
                 <div class="flex flex-col sm:flex-row gap-3 justify-end">
                     <button type="button" onclick="closeSupportChatModal()" class="px-4 py-3 rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-800">Bezárás</button>
                     <button type="submit" class="px-4 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold">Válasz elküldése</button>
@@ -1140,8 +1153,9 @@
         <div id="support-widget-panel" class="hidden">
             <div id="support-widget-card" class="bg-slate-900/95 border border-slate-700 shadow-2xl backdrop-blur-xl rounded-3xl overflow-hidden flex flex-col"></div>
         </div>
-        <button onclick="toggleSupportWidget()" id="support-widget-toggle" class="h-16 w-16 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 shadow-2xl flex items-center justify-center border border-amber-300/50 hover:scale-105 transition-transform">
+        <button onclick="toggleSupportWidget()" id="support-widget-toggle" class="relative h-16 w-16 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 shadow-2xl flex items-center justify-center border border-amber-300/50 hover:scale-105 transition-transform">
             <i class="fa-solid fa-headset text-2xl"></i>
+            <span id="support-widget-unread-badge" class="hidden absolute -top-1 -right-1 min-w-6 px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[11px] font-bold text-center">0</span>
         </button>
     </div>
 
@@ -1209,6 +1223,8 @@
             orders: [],
             quotes: [],
             supportChats: [],
+            supportSummary: { admin_unread_total: 0, customer_unread_total: 0, open_count: 0, archived_count: 0 },
+            supportAdminScope: 'active',
             users: [],
             categories: [],
             cart: JSON.parse(localStorage.getItem('tb_cart') || '[]'),
@@ -1225,7 +1241,8 @@
                 currentChat: null,
                 widgetOpen: false,
                 widgetMaximized: false,
-                loading: false
+                loading: false,
+                lastUnreadCount: 0
             },
             smtpDiagnostics: {
                 config: null,
@@ -1266,7 +1283,8 @@
             const map = {
                 new: { label: 'Új', className: 'bg-rose-500/15 text-rose-300 border border-rose-500/30' },
                 open: { label: 'Nyitott', className: 'bg-sky-500/15 text-sky-300 border border-sky-500/30' },
-                resolved: { label: 'Megoldott', className: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' }
+                resolved: { label: 'Megoldott', className: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' },
+                closed: { label: 'Lezárt', className: 'bg-slate-500/30 text-slate-200 border border-slate-500/40' }
             };
             return map[status] || { label: String(status || 'ismeretlen'), className: 'bg-slate-500/15 text-slate-300 border border-slate-500/30' };
         }
@@ -1303,11 +1321,21 @@
         }
 
         function getSupportUnreadMessageCount() {
-            return state.supportChats.reduce((sum, chat) => sum + Number(chat.unread_count || 0), 0);
+            if (state.supportSummary?.admin_unread_total !== undefined) {
+                return Number(state.supportSummary.admin_unread_total || 0);
+            }
+            return state.supportChats.reduce((sum, chat) => sum + Number(chat.admin_unread_count || chat.unread_count || 0), 0);
         }
 
         function getSupportOpenChatCount() {
-            return state.supportChats.filter(chat => chat.status !== 'resolved').length;
+            if (state.supportSummary?.open_count !== undefined) {
+                return Number(state.supportSummary.open_count || 0);
+            }
+            return state.supportChats.filter(chat => ['new', 'open'].includes(chat.status) && !chat.is_archived).length;
+        }
+
+        function getSupportCustomerUnreadCount() {
+            return Number(state.supportPublic.currentChat?.customer_unread_count || 0);
         }
 
         function getFilteredQuotes() {
@@ -1345,6 +1373,13 @@
             if (badge) {
                 badge.innerText = String(unreadCount);
                 badge.classList.toggle('hidden', unreadCount === 0);
+            }
+
+            const widgetBadge = document.getElementById('support-widget-unread-badge');
+            const customerUnread = getSupportCustomerUnreadCount();
+            if (widgetBadge) {
+                widgetBadge.innerText = String(customerUnread);
+                widgetBadge.classList.toggle('hidden', customerUnread === 0);
             }
         }
 
@@ -1478,6 +1513,7 @@
             const chat = state.supportPublic.currentChat;
             const context = getSupportCustomerContext();
             const statusMeta = getSupportStatusMeta(chat?.status || 'open');
+            const customerUnreadCount = getSupportCustomerUnreadCount();
             panel.classList.toggle('hidden', !state.supportPublic.widgetOpen);
 
             card.className = `bg-slate-900/95 border border-slate-700 shadow-2xl backdrop-blur-xl rounded-3xl overflow-hidden flex flex-col transition-all duration-200 ${state.supportPublic.widgetMaximized ? 'w-[min(32rem,calc(100vw-1.5rem))] h-[80vh]' : 'w-[min(24rem,calc(100vw-1.5rem))] h-[34rem]'}`;
@@ -1504,7 +1540,10 @@
                         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${statusMeta.className}">
                             ${chat ? `Chat #${chat.id} • ${statusMeta.label}` : 'Új beszélgetés'}
                         </span>
-                        <span class="text-xs text-slate-400">${chat?.messages?.length || 0} üzenet</span>
+                        <div class="flex items-center gap-2">
+                            ${customerUnreadCount > 0 ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">${customerUnreadCount} új válasz</span>` : ''}
+                            <span class="text-xs text-slate-400">${chat?.messages?.length || 0} üzenet</span>
+                        </div>
                     </div>
                 </div>
                 <div class="px-5 pt-3 text-xs text-slate-400" id="support-widget-email-note">
@@ -1550,7 +1589,7 @@
 
             const statusMeta = getSupportStatusMeta(chat.status);
             document.getElementById('support-chat-modal-subtitle').innerText = `${chat.user_name || 'Vendég érdeklődő'} • #${chat.id}`;
-            document.getElementById('support-chat-modal-status').innerHTML = ['new', 'open', 'resolved'].map(status => `
+            document.getElementById('support-chat-modal-status').innerHTML = ['new', 'open', 'resolved', 'closed'].map(status => `
                 <option value="${status}" ${status === chat.status ? 'selected' : ''}>${getSupportStatusMeta(status).label}</option>
             `).join('');
             document.getElementById('support-chat-modal-count').innerText = `${chat.messages?.length || 0} üzenet`;
@@ -1568,7 +1607,9 @@
                     <div class="space-y-2 text-sm">
                         <div><span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${statusMeta.className}">${statusMeta.label}</span></div>
                         <div><span class="text-slate-400">Utolsó aktivitás:</span> <span class="text-white">${formatDateTime(chat.last_message_at)}</span></div>
-                        <div><span class="text-slate-400">Olvasatlan:</span> <span class="text-white">${Number(chat.unread_count || 0)} db</span></div>
+                        <div><span class="text-slate-400">Admin olvasatlan:</span> <span class="text-white">${Number(chat.admin_unread_count || chat.unread_count || 0)} db</span></div>
+                        <div><span class="text-slate-400">Ügyfél olvasatlan:</span> <span class="text-white">${Number(chat.customer_unread_count || 0)} db</span></div>
+                        <div><span class="text-slate-400">Archivált:</span> <span class="text-white">${chat.is_archived ? 'Igen' : 'Nem'}</span></div>
                     </div>
                 </div>
             `;
@@ -1648,8 +1689,10 @@
 
         async function loadSupportChats() {
             if (!state.currentUser || state.currentUser.role !== 'admin') return;
-            const data = await apiFetch(API.supportAdmin);
+            const params = new URLSearchParams({ scope: state.supportAdminScope || 'active' });
+            const data = await apiFetch(`${API.supportAdmin}?${params.toString()}`);
             state.supportChats = data.chats || [];
+            state.supportSummary = data.summary || state.supportSummary;
             updateSupportIndicators();
         }
 
@@ -1681,10 +1724,14 @@
             if (!context.email) {
                 state.supportPublic.currentChat = null;
                 state.supportPublic.loading = false;
+                state.supportPublic.lastUnreadCount = 0;
                 renderSupportWidget();
+                updateSupportIndicators();
                 return;
             }
 
+            const previousChat = state.supportPublic.currentChat;
+            const previousUnreadCount = Number(previousChat?.customer_unread_count || 0);
             state.supportPublic.loading = true;
             renderSupportWidget();
             try {
@@ -1692,15 +1739,29 @@
                 if (context.chatId) params.set('chat_id', String(context.chatId));
                 const data = await apiFetch(`${API.supportPublic}?${params.toString()}`);
                 state.supportPublic.currentChat = data.chat || null;
+                const nextUnreadCount = Number(data.chat?.customer_unread_count || 0);
+                state.supportPublic.lastUnreadCount = nextUnreadCount;
                 if (data.chat && !context.authenticated) {
                     persistGuestSupportIdentity(data.chat.user_name || context.name, data.chat.user_email || context.email, data.chat.id);
                 }
+                if (previousChat?.id === data.chat?.id && nextUnreadCount > previousUnreadCount) {
+                    showToast('Új admin válasz érkezett a support chatben.');
+                }
+                if (state.supportPublic.widgetOpen && data.chat?.id && nextUnreadCount > 0) {
+                    const markedChat = await markPublicSupportChatRead(data.chat.id, true);
+                    if (markedChat) {
+                        state.supportPublic.currentChat = markedChat;
+                        state.supportPublic.lastUnreadCount = Number(markedChat.customer_unread_count || 0);
+                    }
+                }
             } catch (err) {
                 state.supportPublic.currentChat = null;
+                state.supportPublic.lastUnreadCount = 0;
                 if (!silent) showToast(err.message);
             } finally {
                 state.supportPublic.loading = false;
                 renderSupportWidget();
+                updateSupportIndicators();
             }
         }
 
@@ -1718,6 +1779,7 @@
                 state.estimates = [];
                 state.quotes = [];
                 state.supportChats = [];
+                state.supportSummary = { admin_unread_total: 0, customer_unread_total: 0, open_count: 0, archived_count: 0 };
                 state.users = [];
                 state.smtpDiagnostics = { config: null, result: null, lastCheckedAt: null };
                 state.quoteFilters.selectedId = null;
@@ -2357,10 +2419,12 @@
                 }).join('') || '<tr><td colspan="8" class="p-6 text-center text-slate-500">Nincs a szűrésnek megfelelő ajánlatkérés.</td></tr>';
             } else if (tab === 'support') {
                 if (!state.supportChats.length) await loadSupportChats();
+                const scopeSelect = document.getElementById('support-scope-filter');
+                if (scopeSelect) scopeSelect.value = state.supportAdminScope || 'active';
                 const table = document.getElementById('admin-support-table');
                 table.innerHTML = state.supportChats.map(chat => {
                     const statusMeta = getSupportStatusMeta(chat.status);
-                    const unreadCount = Number(chat.unread_count || 0);
+                    const unreadCount = Number(chat.admin_unread_count || chat.unread_count || 0);
                     const customerName = chat.user_name || 'Vendég érdeklődő';
                     return `
                         <tr class="${unreadCount > 0 ? 'bg-amber-500/5' : ''} hover:bg-slate-700/50">
@@ -2377,7 +2441,8 @@
                             <td class="p-4"><span class="inline-flex items-center justify-center min-w-10 px-2 py-1 rounded-full text-xs font-bold ${unreadCount > 0 ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30' : 'bg-slate-900 text-slate-400 border border-slate-700'}">${unreadCount}</span></td>
                             <td class="p-4 text-right space-x-2">
                                 <button onclick="openSupportChatModal(${chat.id})" class="text-xs bg-sky-500/15 hover:bg-sky-500/25 px-2.5 py-1.5 rounded text-sky-200 border border-sky-500/25">Megnyitás</button>
-                                <select onchange="updateSupportChatStatus(${chat.id}, this.value)" class="bg-slate-700 text-xs rounded px-2 py-1 border border-slate-600">${['new', 'open', 'resolved'].map(status => `<option value="${status}" ${status === chat.status ? 'selected' : ''}>${getSupportStatusMeta(status).label}</option>`).join('')}</select>
+                                <select onchange="updateSupportChatStatus(${chat.id}, this.value)" class="bg-slate-700 text-xs rounded px-2 py-1 border border-slate-600">${['new', 'open', 'resolved', 'closed'].map(status => `<option value="${status}" ${status === chat.status ? 'selected' : ''}>${getSupportStatusMeta(status).label}</option>`).join('')}</select>
+                                ${chat.can_archive || chat.is_archived ? `<button onclick="toggleSupportArchiveById(${chat.id}, ${chat.is_archived ? 'false' : 'true'})" class="text-xs ${chat.is_archived ? 'text-emerald-300 border-emerald-500/25 bg-emerald-500/10' : 'text-rose-200 border-rose-500/25 bg-rose-500/10'} px-2.5 py-1.5 rounded border">${chat.is_archived ? 'Visszaállítás' : 'Archiválás'}</button>` : ''}
                             </td>
                         </tr>
                     `;
@@ -2801,8 +2866,10 @@
                 if (!state.currentUser && data.chat) {
                     persistGuestSupportIdentity(data.chat.user_name || name, data.chat.user_email || email, data.chat.id);
                 }
+                state.supportPublic.lastUnreadCount = Number(data.chat?.customer_unread_count || 0);
                 document.getElementById('support-widget-message').value = '';
                 renderSupportWidget();
+                updateSupportIndicators();
                 if (state.currentUser?.role === 'admin') {
                     await loadSupportChats();
                 }
@@ -2820,7 +2887,7 @@
                 renderSupportChatModal();
                 document.getElementById('support-chat-modal').classList.remove('hidden');
 
-                if (Number(data.chat?.unread_count || 0) > 0) {
+                if (Number(data.chat?.admin_unread_count || data.chat?.unread_count || 0) > 0) {
                     await markSupportChatRead(id, false);
                     await loadSupportChats();
                     const refreshed = await apiFetch(`${API.supportAdmin}?id=${encodeURIComponent(id)}`);
@@ -2853,6 +2920,25 @@
             }
         }
 
+        async function markPublicSupportChatRead(chatId, silent = false) {
+            const context = getSupportCustomerContext();
+            if (!chatId || !context.email) return null;
+
+            try {
+                const data = await apiFetch(API.supportPublic, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'mark_read', chat_id: chatId, email: context.email })
+                });
+                state.supportPublic.currentChat = data.chat || state.supportPublic.currentChat;
+                state.supportPublic.lastUnreadCount = Number(state.supportPublic.currentChat?.customer_unread_count || 0);
+                updateSupportIndicators();
+                return data.chat || null;
+            } catch (err) {
+                if (!silent) showToast(err.message);
+                return null;
+            }
+        }
+
         async function updateSupportChatStatus(id, status, rerender = true) {
             try {
                 const data = await apiFetch(API.supportAdmin, {
@@ -2879,6 +2965,42 @@
             await updateSupportChatStatus(chatId, status, false);
         }
 
+        async function updateSelectedSupportChatStatus(status) {
+            const chatId = state.supportChatModal.selectedId;
+            if (!chatId) return;
+            const ok = await updateSupportChatStatus(chatId, status, false);
+            if (ok) {
+                await loadSupportChats();
+                renderSupportChatModal();
+                await renderAdminTab('support');
+            }
+        }
+
+        async function toggleSupportArchiveById(id, archived) {
+            if (archived && !confirm('Biztosan archiválja ezt a megoldott/lezárt support beszélgetést?')) return;
+            try {
+                const data = await apiFetch(API.supportAdmin, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: archived ? 'archive' : 'restore', id, archived })
+                });
+                if (state.supportChatModal.selectedId === id) {
+                    state.supportChatModal.selectedChat = data.chat || state.supportChatModal.selectedChat;
+                    if (archived) closeSupportChatModal();
+                }
+                await loadSupportChats();
+                await renderAdminTab('support');
+                showToast(archived ? 'Support chat archiválva.' : 'Support chat visszaállítva.');
+            } catch (err) {
+                showToast(err.message);
+            }
+        }
+
+        async function toggleSupportChatArchive(archived) {
+            const chatId = state.supportChatModal.selectedId;
+            if (!chatId) return;
+            await toggleSupportArchiveById(chatId, archived);
+        }
+
         async function handleSupportAdminReplySubmit(e) {
             e.preventDefault();
             const chatId = state.supportChatModal.selectedId;
@@ -2899,6 +3021,43 @@
             } catch (err) {
                 showToast(err.message);
             }
+        }
+
+        async function handleSupportScopeChange(scope) {
+            state.supportAdminScope = ['active', 'archived', 'all'].includes(scope) ? scope : 'active';
+            await loadSupportChats();
+            await renderAdminTab('support');
+        }
+
+        let supportPollingTimer = null;
+        function startSupportPolling() {
+            if (supportPollingTimer) {
+                clearInterval(supportPollingTimer);
+            }
+
+            supportPollingTimer = setInterval(async () => {
+                try {
+                    const previousAdminUnread = getSupportUnreadMessageCount();
+                    const previousCustomerUnread = getSupportCustomerUnreadCount();
+
+                    if (state.currentUser?.role === 'admin') {
+                        await loadSupportChats();
+                        if (getSupportUnreadMessageCount() > previousAdminUnread) {
+                            showToast('Új ügyfélüzenet érkezett a support inboxba.');
+                        }
+                        if (document.getElementById('page-admin') && !document.getElementById('admin-tab-support').classList.contains('hidden')) {
+                            await renderAdminTab('support');
+                        }
+                    }
+
+                    const context = getSupportCustomerContext();
+                    if (context.email) {
+                        await loadPublicSupportChat(true);
+                    }
+                } catch (err) {
+                    console.warn('Support polling hiba:', err);
+                }
+            }, 20000);
         }
 
         async function updateUserRole(id, role) {
@@ -3053,6 +3212,7 @@
             } catch (err) {
                 showToast('API kapcsolat hiba: ' + err.message);
             }
+            startSupportPolling();
             updateCalculator();
             renderShopProducts();
         };
