@@ -2145,7 +2145,7 @@
                             <span class="text-xs text-slate-400 block">Raktáron: ${p.stock} db</span>
                             ${p.price_visible
                                 ? `<span class="text-lg font-black text-white">${Number(p.price).toLocaleString('hu-HU')} Ft</span>`
-                                : `<button onclick="requireAuthentication()" class="text-left text-sm font-semibold text-amber-400 hover:text-amber-300 flex items-center"><i class="fa-solid fa-lock mr-2"></i>Az ár megtekintéséhez jelentkezzen be</button>`}
+                                : `<button onclick="requireAuthentication()" aria-label="Bejelentkezés szükséges az ár megtekintéséhez" class="text-left text-sm font-semibold text-amber-400 hover:text-amber-300 flex items-center"><i class="fa-solid fa-lock mr-2"></i>Az ár megtekintéséhez jelentkezzen be</button>`}
                         </div>
                         ${commerceEnabled
                             ? `<button onclick="addToCart(${p.id})" aria-label="${esc(`${p.name} kosárba helyezése`)}" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-2.5 rounded-xl transition-colors"><i class="fa-solid fa-cart-plus"></i></button>`
@@ -2278,7 +2278,7 @@
 
         async function checkoutCart() {
             if (state.cart.length === 0) return;
-            if (!requireAuthentication(() => checkoutCartInternal())) {
+            if (!requireAuthentication()) {
                 return;
             }
             await checkoutCartInternal();
