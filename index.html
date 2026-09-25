@@ -1306,11 +1306,13 @@
 
         function requireAuthentication(action) {
             if (canUseCommerceFeatures()) return true;
-            if (typeof action === 'function') {
-                pendingProtectedAction = action;
+            pendingProtectedAction = typeof action === 'function' ? action : null;
+            const modal = document.getElementById('auth-required-modal');
+            const wasHidden = modal.classList.contains('hidden');
+            modal.classList.remove('hidden');
+            if (wasHidden) {
+                showToast('Az árak és a kosár használatához jelentkezzen be vagy regisztráljon.');
             }
-            document.getElementById('auth-required-modal').classList.remove('hidden');
-            showToast('Az árak és a kosár használatához jelentkezzen be vagy regisztráljon.');
             return false;
         }
 
@@ -2137,17 +2139,13 @@
         }
 
         function handleCartClick() {
-            if (!requireAuthentication(() => toggleCartModal())) {
+            if (!requireAuthentication(handleCartClick)) {
                 return;
             }
             toggleCartModal();
         }
 
         function toggleCartModal() {
-            if (!canUseCommerceFeatures()) {
-                requireAuthentication(() => toggleCartModal());
-                return;
-            }
             const modal = document.getElementById('cart-modal');
             modal.classList.toggle('hidden');
             if (!modal.classList.contains('hidden')) renderCartItems();
