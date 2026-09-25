@@ -5,7 +5,7 @@ require_once __DIR__ . '/config.php';
 
 function operations_roles_with_access(): array
 {
-    return ['admin', 'superadmin', 'project_manager', 'field_worker', 'service_agent', 'support_agent', 'quote_manager', 'content_manager'];
+    return ['admin', 'superadmin', 'project_manager', 'service_agent', 'support_agent', 'quote_manager'];
 }
 
 function operations_admin_roles(): array
@@ -146,13 +146,13 @@ function require_enum_value(string $value, array $allowed, string $label): strin
 function insert_lead_timeline(int $leadId, ?int $actorUserId, string $eventType, ?string $note = null, ?array $metadata = null): void
 {
     $stmt = db()->prepare('INSERT INTO lead_timeline (lead_id, actor_user_id, event_type, event_note, metadata_json) VALUES (?, ?, ?, ?, ?)');
-    $stmt->execute([$leadId, $actorUserId, clean_string($eventType, 60), $note !== null ? clean_string($note, 5000) : null, $metadata ? json_encode($metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null]);
+    $stmt->execute([$leadId, $actorUserId, clean_string($eventType, 60), $note !== null ? clean_string($note, 16000) : null, $metadata ? json_encode($metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null]);
 }
 
 function insert_project_timeline(int $projectId, ?int $actorUserId, string $eventType, ?string $note = null, ?string $relatedType = null, ?int $relatedId = null): void
 {
     $stmt = db()->prepare('INSERT INTO project_timeline (project_id, actor_user_id, event_type, event_note, related_type, related_id) VALUES (?, ?, ?, ?, ?, ?)');
-    $stmt->execute([$projectId, $actorUserId, clean_string($eventType, 40), $note !== null ? clean_string($note, 5000) : null, $relatedType !== null ? clean_string($relatedType, 40) : null, $relatedId]);
+    $stmt->execute([$projectId, $actorUserId, clean_string($eventType, 40), $note !== null ? clean_string($note, 16000) : null, $relatedType !== null ? clean_string($relatedType, 40) : null, $relatedId]);
 }
 
 function insert_service_ticket_history(int $ticketId, ?int $actorUserId, string $eventType, ?string $fromValue = null, ?string $toValue = null, ?string $note = null): void
@@ -322,6 +322,13 @@ function post_crm(array $user, array $payload): void
         $nextFollowupAt = parse_datetime_nullable($payload['next_follow_up_at'] ?? null);
         $update = db()->prepare('UPDATE leads SET assigned_to_user_id = ?, next_follow_up_at = ? WHERE id = ?');
         $update->execute([$assignedTo, $nextFollowupAt, $leadId]);
+        if ($update->rowCount() === 0) {
+            $exists = db()->prepare('SELECT id FROM leads WHERE id = ? LIMIT 1');
+            $exists->execute([$leadId]);
+            if (!$exists->fetch()) {
+                send_json(['ok' => false, 'error' => 'Lead nem található.'], 404);
+            }
+        }
         insert_lead_timeline($leadId, (int) $admin['id'], $action === 'assign' ? 'assigned' : 'follow_up_scheduled', clean_string($payload['note'] ?? '', 500));
         log_admin_activity((int) $admin['id'], 'lead_assignment_followup', 'lead', $leadId, ['assigned_to' => $assignedTo, 'next_follow_up_at' => $nextFollowupAt]);
         send_json(['ok' => true]);
@@ -557,6 +564,13 @@ function post_projects_endpoint(array $payload): void
 
         $stmt = db()->prepare('UPDATE projects SET user_id = ?, lead_id = ?, title = ?, address = ?, project_type = ?, description = ?, budget_cents = ?, planned_start_date = ?, planned_end_date = ?, assigned_to_user_id = ?, status = ?, internal_note = ? WHERE id = ?');
         $stmt->execute([$userId, $leadId, $title, $address !== '' ? $address : null, $type !== '' ? $type : null, $description !== '' ? $description : null, $budget, $plannedStart, $plannedEnd, $assignedTo, $status, $internalNote !== '' ? $internalNote : null, $id]);
+        if ($stmt->rowCount() === 0) {
+            $exists = db()->prepare('SELECT id FROM projects WHERE id = ? LIMIT 1');
+            $exists->execute([$id]);
+            if (!$exists->fetch()) {
+                send_json(['ok' => false, 'error' => 'Projekt nem található.'], 404);
+            }
+        }
         insert_project_timeline($id, (int) $admin['id'], 'note', 'Projekt adatok frissítve.');
         log_admin_activity((int) $admin['id'], 'project_updated', 'project', $id, ['status' => $status]);
         send_json(['ok' => true]);
@@ -839,6 +853,13 @@ function post_work_orders_endpoint(array $payload): void
 
         $stmt = db()->prepare('UPDATE work_order_tasks SET status = ? WHERE id = ?');
         $stmt->execute([$status, $taskId]);
+        if ($stmt->rowCount() === 0) {
+            $exists = db()->prepare('SELECT id FROM work_order_tasks WHERE id = ? LIMIT 1');
+            $exists->execute([$taskId]);
+            if (!$exists->fetch()) {
+                send_json(['ok' => false, 'error' => 'Feladat nem található.'], 404);
+            }
+        }
         send_json(['ok' => true]);
     }
 
@@ -861,6 +882,13 @@ function post_work_orders_endpoint(array $payload): void
         $done = !empty($payload['is_done']) ? 1 : 0;
         $stmt = db()->prepare('UPDATE work_order_checklists SET is_done = ? WHERE id = ?');
         $stmt->execute([$done, $id]);
+        if ($stmt->rowCount() === 0) {
+            $exists = db()->prepare('SELECT id FROM work_order_checklists WHERE id = ? LIMIT 1');
+            $exists->execute([$id]);
+            if (!$exists->fetch()) {
+                send_json(['ok' => false, 'error' => 'Checklist elem nem található.'], 404);
+            }
+        }
         send_json(['ok' => true]);
     }
 
@@ -1304,14 +1332,8 @@ function list_files_endpoint(array $user): void
 
     if (!$isAdmin) {
         $uid = (int) $user['id'];
-        $role = (string) ($user['role'] ?? 'user');
-        if ($role === 'field_worker') {
-            $where[] = '(pf.user_id = ? OR p.user_id = ? OR wo.user_id = ? OR pwo.user_id = ? OR wo.assigned_to_user_id = ?)';
-            array_push($args, $uid, $uid, $uid, $uid, $uid);
-        } else {
-            $where[] = '(pf.user_id = ? OR p.user_id = ? OR wo.user_id = ? OR pwo.user_id = ?)';
-            array_push($args, $uid, $uid, $uid, $uid);
-        }
+        $where[] = '(pf.user_id = ? OR p.user_id = ? OR wo.user_id = ? OR pwo.user_id = ?)';
+        array_push($args, $uid, $uid, $uid, $uid);
     }
 
     $sql = 'SELECT pf.id, pf.project_id, pf.work_order_id, pf.user_id, pf.category, pf.original_name, pf.storage_path, pf.mime_type, pf.file_size, pf.title, pf.description, pf.uploaded_by_user_id, pf.created_at,
@@ -1388,11 +1410,17 @@ function post_files_endpoint(array $user, array $payload): void
     $htaccessContent = "Options -Indexes\nphp_flag engine off\n<FilesMatch \"\\.(php|phtml|php3|php4|php5|phar)$\">\n  Deny from all\n</FilesMatch>\n";
     $htaccessRootPath = dirname(__DIR__) . '/uploads/project-files/.htaccess';
     if (!is_file($htaccessRootPath)) {
-        @file_put_contents($htaccessRootPath, $htaccessContent);
+        $written = @file_put_contents($htaccessRootPath, $htaccessContent);
+        if ($written === false) {
+            send_json(['ok' => false, 'error' => 'A feltöltési könyvtár védelmi fájlja nem írható ki (root).'], 500);
+        }
     }
     $htaccessPath = $baseDir . '/.htaccess';
     if (!is_file($htaccessPath)) {
-        @file_put_contents($htaccessPath, $htaccessContent);
+        $written = @file_put_contents($htaccessPath, $htaccessContent);
+        if ($written === false) {
+            send_json(['ok' => false, 'error' => 'A feltöltési könyvtár védelmi fájlja nem írható ki (havi mappa).'], 500);
+        }
     }
 
     $safeName = bin2hex(random_bytes(16)) . '.' . $extension;
