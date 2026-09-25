@@ -7,6 +7,8 @@ DROP TABLE IF EXISTS support_messages;
 DROP TABLE IF EXISTS support_chats;
 DROP TABLE IF EXISTS quote_replies;
 DROP TABLE IF EXISTS admin_activity_logs;
+DROP TABLE IF EXISTS stock_movements;
+DROP TABLE IF EXISTS order_status_logs;
 DROP TABLE IF EXISTS gdpr_requests;
 DROP TABLE IF EXISTS wishlists;
 DROP TABLE IF EXISTS user_notification_preferences;
@@ -25,7 +27,7 @@ CREATE TABLE users (
   name VARCHAR(120) NOT NULL,
   email VARCHAR(190) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  role ENUM('user', 'admin') NOT NULL DEFAULT 'user',
+  role ENUM('user', 'admin', 'superadmin', 'webshop_manager', 'quote_manager', 'support_agent', 'accountant', 'content_manager') NOT NULL DEFAULT 'user',
   phone VARCHAR(30) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   is_active TINYINT(1) NOT NULL DEFAULT 1
@@ -113,8 +115,13 @@ CREATE TABLE orders (
   payment_method VARCHAR(40) NULL,
   payment_provider VARCHAR(40) NULL,
   payment_status VARCHAR(40) NULL,
-  status VARCHAR(60) NOT NULL DEFAULT 'Feldolgozás alatt',
+  tracking_number VARCHAR(120) NULL,
+  tracking_url VARCHAR(1000) NULL,
+  stock_reverted TINYINT(1) NOT NULL DEFAULT 0,
+  status VARCHAR(60) NOT NULL DEFAULT 'new',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_orders_status_created (status, created_at),
+  INDEX idx_orders_user_created (user_id, created_at),
   CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
@@ -126,6 +133,33 @@ CREATE TABLE order_items (
   unit_price INT UNSIGNED NOT NULL,
   CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
   CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE order_status_logs (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id INT UNSIGNED NOT NULL,
+  from_status VARCHAR(60) NOT NULL,
+  to_status VARCHAR(60) NOT NULL,
+  changed_by_user_id INT UNSIGNED NULL,
+  note VARCHAR(500) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_order_status_logs_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_order_status_logs_user FOREIGN KEY (changed_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_order_status_logs_order_created (order_id, created_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE stock_movements (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  product_id INT UNSIGNED NOT NULL,
+  order_id INT UNSIGNED NULL,
+  movement_type ENUM('reserve', 'release', 'manual_adjustment') NOT NULL,
+  qty INT NOT NULL,
+  note VARCHAR(255) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_stock_movements_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  CONSTRAINT fk_stock_movements_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
+  INDEX idx_stock_movements_product_created (product_id, created_at),
+  INDEX idx_stock_movements_order_created (order_id, created_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE quotes (
@@ -283,9 +317,9 @@ INSERT INTO products (name, category_id, price, stock, icon, image_url, descript
 ('Wi-Fi Videó Kaputelefon Beltéri Egységgel', 12, 68900, 8, 'fa-door-closed', 'https://images.unsplash.com/photo-1616627455480-8c6366f75f1a?auto=format&fit=crop&w=800&q=80', 'Mobiltelefonos kapunyitás és HD videókép.'),
 ('Fi-Relé (Áram-védőkapcsoló) 40A 30mA', 15, 11200, 30, 'fa-plug', 'https://images.unsplash.com/photo-1584277261846-c6a1672ed979?auto=format&fit=crop&w=800&q=80', 'Életvédelmi relé családi házak védelméhez.');
 
-INSERT INTO orders (user_id, total, status, created_at) VALUES
-(2, 143800, 'Feldolgozás alatt', '2026-03-18 10:15:00'),
-(3, 42500, 'Teljesítve', '2026-03-15 14:22:00');
+INSERT INTO orders (user_id, total, payment_method, payment_provider, payment_status, status, created_at) VALUES
+(2, 143800, 'bank_transfer', 'offline', 'accepted', 'processing', '2026-03-18 10:15:00'),
+(3, 42500, 'cash_on_delivery', 'offline', 'paid', 'completed', '2026-03-15 14:22:00');
 
 INSERT INTO order_items (order_id, product_id, qty, unit_price) VALUES
 (1, 1, 1, 124900),

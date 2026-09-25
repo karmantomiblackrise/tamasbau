@@ -81,6 +81,7 @@ mysql -u root -p tamasbau < database/migrations/20260922_quote_reply_system.sql
 mysql -u root -p tamasbau < database/migrations/20260922_support_chat_system.sql
 mysql -u root -p tamasbau < database/migrations/20260925_support_chat_lifecycle_updates.sql
 mysql -u root -p tamasbau < database/migrations/20260925_account_checkout_foundation.sql
+mysql -u root -p tamasbau < database/migrations/20260925_advanced_order_management.sql
 ```
 
 A `20260925_support_chat_lifecycle_updates.sql` migráció a korábbi support chat telepítést bővíti `closed` státusszal, külön admin/customer olvasatlan számlálókkal, archiválással (`deleted_at`) és utolsó admin/customer aktivitás időbélyegekkel.
@@ -92,6 +93,14 @@ A `20260925_account_checkout_foundation.sql` migráció létrehozza a professzio
 - `wishlists`
 - `gdpr_requests`
 - `admin_activity_logs`
+
+A `20260925_advanced_order_management.sql` migráció hozzáadja:
+
+- bővített rendelési workflow státuszokat (`new`, `payment_pending`, `processing`, `packing`, `shipped`, `completed`, `cancelled`, `refunded`)
+- `order_status_logs` státusztörténetet
+- `stock_movements` készletmozgás naplót
+- tracking mezőket (`tracking_number`, `tracking_url`) és idempotens készlet-visszaállítás jelzőt (`orders.stock_reverted`)
+- bővített admin szerepkör enumot (`superadmin`, `webshop_manager`, `quote_manager`, `support_agent`, `accountant`, `content_manager`)
 
 ## 4) Helyi futtatás
 
@@ -284,6 +293,7 @@ Minden új SQL művelet prepared statementet használ.
 
 - `api/checkout-payment.php` biztosítja a konfigurálható fizetési provider absztrakciót (`offline|barion|stripe`).
 - `api/orders.php` a checkout adatokat validálja (szállítás/számlázás/fizetés), szerveroldali árból számol, és visszaigazoló e-mail eseményt indít.
+- `api/orders.php` admin státuszváltáskor tranzakciós készlet-visszaállítást/újrafoglalást, státusztörténet naplózást és opcionális tracking adat mentést végez.
 - `api/account.php` (bejelentkezett user):
   - rendelési előzmények és mentett kalkulációk
   - support chat előzmények

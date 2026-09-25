@@ -6,6 +6,7 @@ require_once __DIR__ . '/config.php';
 $admin = require_admin();
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $payload = get_json_input();
+$assignableRoles = ['user', 'admin', 'superadmin', 'webshop_manager', 'quote_manager', 'support_agent', 'accountant', 'content_manager'];
 
 if ($method === 'GET') {
     $stmt = db()->query('SELECT id, name, email, role, phone, created_at, is_active FROM users ORDER BY created_at DESC');
@@ -38,10 +39,10 @@ if ($method === 'POST') {
 
         if (isset($payload['role'])) {
             $role = clean_string((string) $payload['role']);
-            if (!in_array($role, ['user', 'admin'], true)) {
+            if (!in_array($role, $assignableRoles, true)) {
                 send_json(['ok' => false, 'error' => 'Érvénytelen szerepkör.'], 422);
             }
-            if ((int) $admin['id'] === $id && $role !== 'admin') {
+            if ((int) $admin['id'] === $id && !in_array($role, ['admin', 'superadmin'], true)) {
                 send_json(['ok' => false, 'error' => 'Saját admin szerepkör nem vehető el.'], 422);
             }
             $fields[] = 'role = ?';
@@ -53,8 +54,8 @@ if ($method === 'POST') {
             if ((int) $admin['id'] === $id && $newActive !== 1) {
                 send_json(['ok' => false, 'error' => 'Saját admin fiók nem tiltható le.'], 422);
             }
-            if (($targetUser['role'] ?? 'user') === 'admin' && $newActive !== 1) {
-                $activeAdminCount = (int) db()->query("SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1")->fetchColumn();
+            if (in_array((string) ($targetUser['role'] ?? 'user'), ['admin', 'superadmin'], true) && $newActive !== 1) {
+                $activeAdminCount = (int) db()->query("SELECT COUNT(*) FROM users WHERE role IN ('admin', 'superadmin') AND is_active = 1")->fetchColumn();
                 if ($activeAdminCount <= 1) {
                     send_json(['ok' => false, 'error' => 'Az utolsó aktív admin nem tiltható le.'], 422);
                 }
@@ -102,8 +103,8 @@ if ($method === 'POST') {
         if ((int) $admin['id'] === $id) {
             send_json(['ok' => false, 'error' => 'Saját admin fiók nem törölhető.'], 422);
         }
-        if (($targetUser['role'] ?? 'user') === 'admin' && (int) $targetUser['is_active'] === 1) {
-            $activeAdminCount = (int) db()->query("SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = 1")->fetchColumn();
+        if (in_array((string) ($targetUser['role'] ?? 'user'), ['admin', 'superadmin'], true) && (int) $targetUser['is_active'] === 1) {
+            $activeAdminCount = (int) db()->query("SELECT COUNT(*) FROM users WHERE role IN ('admin', 'superadmin') AND is_active = 1")->fetchColumn();
             if ($activeAdminCount <= 1) {
                 send_json(['ok' => false, 'error' => 'Az utolsó aktív admin nem törölhető.'], 422);
             }

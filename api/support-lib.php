@@ -254,7 +254,7 @@ function support_notify_admins_about_customer_message(array $chat, string $messa
     $stmt = db()->query(
         "SELECT name, email
          FROM users
-         WHERE role = 'admin' AND is_active = 1 AND email <> ''"
+         WHERE role IN ('admin', 'superadmin', 'support_agent') AND is_active = 1 AND email <> ''"
     );
     $admins = $stmt->fetchAll();
     if (!$admins) {
