@@ -1165,14 +1165,14 @@
         <span id="toast-message">Sikeres művelet!</span>
     </div>
 
-    <div id="auth-required-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4 hidden">
+    <div id="auth-required-modal" role="dialog" aria-modal="true" aria-labelledby="auth-required-title" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4 hidden">
         <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl">
             <div class="flex items-start justify-between mb-4">
                 <div>
-                    <h3 class="text-lg font-bold text-white flex items-center"><i class="fa-solid fa-lock mr-2 text-amber-400"></i> Bejelentkezés szükséges</h3>
+                    <h3 id="auth-required-title" class="text-lg font-bold text-white flex items-center"><i class="fa-solid fa-lock mr-2 text-amber-400"></i> Bejelentkezés szükséges</h3>
                     <p class="text-sm text-slate-400 mt-1">Az árak és a kosár használatához jelentkezzen be vagy regisztráljon.</p>
                 </div>
-                <button onclick="closeAuthRequiredModal()" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+                <button onclick="closeAuthRequiredModal()" aria-label="Hitelesítési felhívás bezárása" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <button onclick="openAuthFromPrompt('login')" class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">Bejelentkezés</button>
@@ -2092,7 +2092,7 @@
                                 ? `<span class="text-lg font-black text-white">${Number(p.price).toLocaleString('hu-HU')} Ft</span>`
                                 : `<button onclick="requireAuthentication()" class="text-left text-sm font-semibold text-amber-400 hover:text-amber-300 flex items-center"><i class="fa-solid fa-lock mr-2"></i>Az ár megtekintéséhez jelentkezzen be</button>`}
                         </div>
-                        <button onclick="addToCart(${p.id})" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-2.5 rounded-xl transition-colors">
+                        <button onclick="addToCart(${p.id})" aria-label="${esc(`${p.name} kosárba helyezése`)}" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-2.5 rounded-xl transition-colors">
                             <i class="fa-solid fa-cart-plus"></i>
                         </button>
                     </div>
