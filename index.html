@@ -1318,8 +1318,14 @@
 
         function requireAuthentication(action) {
             if (canUseCommerceFeatures()) return true;
-            pendingProtectedAction = typeof action === 'function' ? action : null;
             const modal = document.getElementById('auth-required-modal');
+            if (!modal) {
+                openAuthModal('login');
+                return false;
+            }
+            if (typeof action === 'function') {
+                pendingProtectedAction = action;
+            }
             const wasHidden = modal.classList.contains('hidden');
             if (wasHidden) {
                 authRequiredTriggerElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -1338,7 +1344,7 @@
             const modal = document.getElementById('auth-required-modal');
             if (!modal || modal.classList.contains('hidden')) return [];
             return Array.from(modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
-                .filter(el => !el.hasAttribute('disabled'));
+                .filter(el => !el.hasAttribute('disabled') && el.getAttribute('aria-hidden') !== 'true' && el.offsetParent !== null);
         }
 
         function handleAuthRequiredModalKeydown(event) {
@@ -2235,12 +2241,12 @@
         }
 
         function updateCartQty(index, delta) {
-            if (!canUseCommerceFeatures()) {
-                requireAuthentication();
-                return;
-            }
             if (!state.cart[index]) {
                 renderCartItems();
+                return;
+            }
+            if (!canUseCommerceFeatures()) {
+                requireAuthentication();
                 return;
             }
             state.cart[index].qty += delta;
