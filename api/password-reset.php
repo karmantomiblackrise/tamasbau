@@ -12,6 +12,7 @@ if ($method !== 'POST') {
 }
 
 if ($action === 'request') {
+    enforce_rate_limit('password_reset_request', 5, 900);
     $email = clean_string($payload['email'] ?? '', 190);
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         send_json(['ok' => false, 'error' => 'Érvénytelen e-mail cím.'], 422);
@@ -71,6 +72,7 @@ if ($action === 'request') {
 }
 
 if ($action === 'validate') {
+    enforce_rate_limit('password_reset_validate', 30, 900);
     $token = trim((string) ($payload['token'] ?? ''));
     if ($token === '') {
         send_json(['ok' => false, 'error' => 'Hiányzó token.'], 422);
@@ -82,6 +84,7 @@ if ($action === 'validate') {
 }
 
 if ($action === 'reset') {
+    enforce_rate_limit('password_reset_apply', 8, 900);
     $token = trim((string) ($payload['token'] ?? ''));
     $password = (string) ($payload['password'] ?? '');
     if ($token === '' || mb_strlen($password) < 8) {

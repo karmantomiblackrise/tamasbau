@@ -3,7 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com data:; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'">
     <title>Tamás Bau Kft. - Villanyszerelés & Riasztórendszerek</title>
+    <meta name="description" content="Tamás Bau Kft. villanyszerelés, riasztórendszer, kamerarendszer és okosotthon kivitelezés Budapesten és Pest megyében.">
+    <meta property="og:title" content="Tamás Bau Kft. - Villanyszerelés & Riasztórendszerek">
+    <meta property="og:description" content="Professzionális villanyszerelési és biztonságtechnikai kivitelezés, webshop és ajánlatkérés egy helyen.">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Tamás Bau Kft.">
+    <meta name="twitter:description" content="Villanyszerelés, riasztó- és kamerarendszerek, ajánlatkérés online.">
+    <link rel="manifest" href="/manifest.webmanifest">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -3389,6 +3398,9 @@
             startSupportPolling();
             updateCalculator();
             renderShopProducts();
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+            }
         };
     </script>
 </body>

@@ -6,6 +6,11 @@ SET NAMES utf8mb4;
 DROP TABLE IF EXISTS support_messages;
 DROP TABLE IF EXISTS support_chats;
 DROP TABLE IF EXISTS quote_replies;
+DROP TABLE IF EXISTS admin_activity_logs;
+DROP TABLE IF EXISTS gdpr_requests;
+DROP TABLE IF EXISTS wishlists;
+DROP TABLE IF EXISTS user_notification_preferences;
+DROP TABLE IF EXISTS user_addresses;
 DROP TABLE IF EXISTS order_items;
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS saved_estimates;
@@ -24,6 +29,35 @@ CREATE TABLE users (
   phone VARCHAR(30) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   is_active TINYINT(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB;
+
+CREATE TABLE user_addresses (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL UNIQUE,
+  shipping_name VARCHAR(120) NULL,
+  shipping_phone VARCHAR(40) NULL,
+  shipping_postal_code VARCHAR(20) NULL,
+  shipping_city VARCHAR(120) NULL,
+  shipping_address VARCHAR(255) NULL,
+  billing_name VARCHAR(120) NULL,
+  billing_tax_number VARCHAR(60) NULL,
+  billing_postal_code VARCHAR(20) NULL,
+  billing_city VARCHAR(120) NULL,
+  billing_address VARCHAR(255) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_user_addresses_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE user_notification_preferences (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL UNIQUE,
+  order_emails TINYINT(1) NOT NULL DEFAULT 1,
+  quote_emails TINYINT(1) NOT NULL DEFAULT 1,
+  support_emails TINYINT(1) NOT NULL DEFAULT 1,
+  marketing_emails TINYINT(1) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_user_notification_preferences_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE categories (
@@ -65,6 +99,20 @@ CREATE TABLE orders (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id INT UNSIGNED NULL,
   total INT UNSIGNED NOT NULL,
+  shipping_name VARCHAR(120) NULL,
+  shipping_phone VARCHAR(40) NULL,
+  shipping_postal_code VARCHAR(20) NULL,
+  shipping_city VARCHAR(120) NULL,
+  shipping_address VARCHAR(255) NULL,
+  billing_name VARCHAR(120) NULL,
+  billing_tax_number VARCHAR(60) NULL,
+  billing_postal_code VARCHAR(20) NULL,
+  billing_city VARCHAR(120) NULL,
+  billing_address VARCHAR(255) NULL,
+  shipping_method VARCHAR(40) NULL,
+  payment_method VARCHAR(40) NULL,
+  payment_provider VARCHAR(40) NULL,
+  payment_status VARCHAR(40) NULL,
   status VARCHAR(60) NOT NULL DEFAULT 'Feldolgozás alatt',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
@@ -94,6 +142,19 @@ CREATE TABLE quotes (
   INDEX idx_quotes_status_created (status, created_at),
   INDEX idx_quotes_email (email),
   INDEX idx_quotes_replied_at (replied_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE admin_activity_logs (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  admin_user_id INT UNSIGNED NOT NULL,
+  event_type VARCHAR(80) NOT NULL,
+  target_type VARCHAR(80) NULL,
+  target_id INT UNSIGNED NULL,
+  details TEXT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_admin_activity_logs_user FOREIGN KEY (admin_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_admin_activity_logs_created (created_at),
+  INDEX idx_admin_activity_logs_event (event_type, created_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE quote_replies (
@@ -156,10 +217,45 @@ CREATE TABLE saved_estimates (
   CONSTRAINT fk_saved_estimates_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE wishlists (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  product_id INT UNSIGNED NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_wishlists_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_wishlists_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  UNIQUE KEY uniq_wishlist_user_product (user_id, product_id),
+  INDEX idx_wishlists_user_created (user_id, created_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE gdpr_requests (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  request_type ENUM('data_export', 'account_delete') NOT NULL,
+  status ENUM('new', 'in_progress', 'done', 'rejected') NOT NULL DEFAULT 'new',
+  consent_version VARCHAR(40) NOT NULL DEFAULT 'v1',
+  note TEXT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_gdpr_requests_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_gdpr_requests_user_status (user_id, status, created_at)
+) ENGINE=InnoDB;
+
 INSERT INTO users (name, email, password_hash, role, phone, is_active) VALUES
 ('Tamás Bau Admin', 'admin@tamasbau.hu', '$2y$10$MQrhuqpNXpFmNwG56je1XemeyoWzHhlMBOateSUfcq5zkr8mpKIl6', 'admin', '+36 (30) 123-4567', 1),
 ('Nagy Péter', 'nagy.peter@example.hu', '$2y$10$wyjWKleoJ76qtUVoSWxXbevwc9cjvdSYZWH5ILdSZpyFwx3ke3RuS', 'user', '+36 30 222 1111', 1),
 ('Szabó Éva', 'szabo.eva@example.hu', '$2y$10$QJwbtBoUexoM1F2BBmiJAu7bRePgEZ/RHTu4o4o3fsrBzW70MJUrq', 'user', '+36 30 333 2222', 1);
+
+INSERT INTO user_addresses (
+  user_id, shipping_name, shipping_phone, shipping_postal_code, shipping_city, shipping_address,
+  billing_name, billing_tax_number, billing_postal_code, billing_city, billing_address
+) VALUES
+(2, 'Nagy Péter', '+36 30 222 1111', '1117', 'Budapest', 'Minta utca 12.',
+ 'Nagy Péter', '', '1117', 'Budapest', 'Minta utca 12.');
+
+INSERT INTO user_notification_preferences (user_id, order_emails, quote_emails, support_emails, marketing_emails) VALUES
+(2, 1, 1, 1, 0),
+(3, 1, 1, 1, 0);
 
 INSERT INTO categories (id, name, slug, parent_id) VALUES
 (1, 'Riasztórendszerek', 'riasztorendszerek', NULL),
@@ -217,3 +313,6 @@ INSERT INTO support_messages (chat_id, sender_type, sender_name, sender_email, m
 
 INSERT INTO saved_estimates (user_id, area, wiring_type, alarm_qty, camera_qty, intercom, total, created_at) VALUES
 (2, 70, 'full', 1, 2, 0, 1190000, '2026-03-20 11:30:00');
+
+INSERT INTO wishlists (user_id, product_id, created_at) VALUES
+(2, 3, '2026-03-22 08:00:00');

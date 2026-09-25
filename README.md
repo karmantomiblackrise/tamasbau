@@ -27,6 +27,7 @@ Ezután állítsd be a saját adatbázis- és SMTP-adataidat.
 - `APP_ENV` – `development` vagy `production`
 - `TB_APP_NAME` – alkalmazás / feladó név
 - `TB_APP_URL` – helyi vagy éles URL (pl. `http://localhost:8000`)
+- `TB_CHECKOUT_PAYMENT_PROVIDER` – `offline`, `barion` vagy `stripe` (ha nincs online provider konfigurálva, biztonságos offline fallback marad aktív)
 
 ### Adatbázis
 
@@ -79,9 +80,18 @@ A séma már tartalmazza:
 mysql -u root -p tamasbau < database/migrations/20260922_quote_reply_system.sql
 mysql -u root -p tamasbau < database/migrations/20260922_support_chat_system.sql
 mysql -u root -p tamasbau < database/migrations/20260925_support_chat_lifecycle_updates.sql
+mysql -u root -p tamasbau < database/migrations/20260925_account_checkout_foundation.sql
 ```
 
 A `20260925_support_chat_lifecycle_updates.sql` migráció a korábbi support chat telepítést bővíti `closed` státusszal, külön admin/customer olvasatlan számlálókkal, archiválással (`deleted_at`) és utolsó admin/customer aktivitás időbélyegekkel.
+
+A `20260925_account_checkout_foundation.sql` migráció létrehozza a professzionális ügyfélfiók alap tábláit:
+
+- `user_addresses`
+- `user_notification_preferences`
+- `wishlists`
+- `gdpr_requests`
+- `admin_activity_logs`
 
 ## 4) Helyi futtatás
 
@@ -257,6 +267,7 @@ Minden új SQL művelet prepared statementet használ.
 
 - Az admin műveletek szerveroldali jogosultság-ellenőrzéssel védettek (`require_admin()`).
 - A session-alapú módosító műveletekhez CSRF token szükséges (`X-CSRF-Token`).
+- Bejelentkezés, jelszó-reset, support és checkout műveleteknél alap rate-limit védelem aktív.
 - Az e-mail címek validálása szerveroldalon történik.
 - A frontend renderelés escape-eli az ügyfél- és adminszövegeket.
 - SMTP jelszót vagy teljes éles konfigurációt ne naplózz, ne commitolj és ne jeleníts meg a kliensoldalon.
@@ -267,8 +278,36 @@ Minden új SQL művelet prepared statementet használ.
 - Bejelentkezett aktív user esetén a `GET api/products.php` visszaadja a valós árat és `price_visible: true` értéket.
 - A rendelési végpont (`api/orders.php`) hitelesített sessiont igényel; jogosulatlan kérésnél egységes `401` JSON válasz érkezik.
 - Checkoutnál a backend minden tétel árát adatbázisból tölti, és a végösszeget szerveroldalon számolja újra (a kliensár nem megbízható forrás).
+- API security headerek aktívak: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, CSP.
 
-## 10) cPanel workflow (terminál nélkül)
+## 10) Checkout provider és ügyfélfiók API
+
+- `api/checkout-payment.php` biztosítja a konfigurálható fizetési provider absztrakciót (`offline|barion|stripe`).
+- `api/orders.php` a checkout adatokat validálja (szállítás/számlázás/fizetés), szerveroldali árból számol, és visszaigazoló e-mail eseményt indít.
+- `api/account.php` (bejelentkezett user):
+  - rendelési előzmények és mentett kalkulációk
+  - support chat előzmények
+  - kívánságlista kezelés
+  - számlázási/szállítási adatok mentése
+  - értesítési beállítások
+  - e-mail és jelszó módosítás újrahitelesítéssel
+  - GDPR adatigénylés/fióktörlés kérés rögzítése
+
+## 11) PWA / SEO / jogi alapok
+
+- `manifest.webmanifest`
+- `service-worker.js` (admin/API válaszokat nem cache-eli)
+- `offline.html`
+- `robots.txt`, `sitemap.xml`
+- `sitemap.xml` és `robots.txt` jelenleg `https://tamasbau.hu` URL-t használ; ettől eltérő domain esetén élesítéskor frissítsd.
+- jogi oldalak magyar nyelvű szerkeszthető mintái:
+  - `adatkezelesi-tajekoztato.html`
+  - `cookie-tajekoztato.html`
+  - `aszf.html`
+  - `elallasi-tajekoztato.html`
+  - `impresszum.html`
+
+## 12) cPanel workflow (terminál nélkül)
 
 1. **Fájlok feltöltése cPanel File Managerben**
    - Töltsd fel a projektfájlokat a web gyökérkönyvtárba.
@@ -307,13 +346,13 @@ Minden új SQL művelet prepared statementet használ.
    - SMTP jelszót soha ne commitolj.
    - Az SMTP teszt funkció csak autentikált admin számára legyen használható.
 
-## 11) SMTP diagnosztika API
+## 13) SMTP diagnosztika API
 
 - `POST api/smtp.php` + `action=status` (CSRF védetten) – admin-only konfiguráció összefoglaló
 - `POST api/smtp.php` + `action=check` (**JSON body-ban**) – SMTP kapcsolat és hitelesítés ellenőrzése (küldés nélkül)
 - `POST api/smtp.php` + `action=send_test` (**JSON body-ban**) – megerősítéssel próba-e-mail küldése explicit címzettre
 
-## 12) API végpontok
+## 14) API végpontok
 
 - `api/auth.php` – regisztráció, login, logout, aktuális user
 - `api/password-reset.php` – elfelejtett jelszó token kérés / ellenőrzés / reset
@@ -321,8 +360,12 @@ Minden új SQL művelet prepared statementet használ.
 - `api/categories.php` – korlátlan mélységű kategóriafa CRUD + flat/tree lista
 - `api/products.php` – termék CRUD
 - `api/orders.php` – hitelesített checkout + rendelés lista + státusz frissítés
+- `api/account.php` – professzionális ügyfélfiók adatok és beállítások
 - `api/quotes.php` – ajánlatkérés létrehozás + admin válaszkezelés
 - `api/support.php` – publikus support chat létrehozás + ügyfél előzmények lekérése
 - `api/support-chats.php` – admin support inbox + részletek + reply + mark-read + státuszfrissítés
 - `api/smtp.php` – admin SMTP diagnosztika + próba-e-mail
 - `api/estimates.php` – bejelentkezett user kalkulációi
+- `api/admin-analytics.php` – KPI + top termék/kategória + alacsony készlet + CSV export
+- `api/admin-activity.php` – admin aktivitási napló lekérés
+- `api/product-upload.php` – biztonságos admin termékkép-feltöltés (`uploads/products/`)

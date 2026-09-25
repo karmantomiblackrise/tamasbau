@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/checkout-payment.php';
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $payload = get_json_input();
@@ -70,10 +71,37 @@ if ($method === 'POST') {
     $action = clean_string($payload['action'] ?? 'create');
 
     if ($action === 'create') {
+        validate_csrf_token();
         $user = require_login();
+        enforce_rate_limit('checkout_create', 12, 900);
         $items = is_array($payload['items'] ?? null) ? $payload['items'] : [];
+        $checkout = is_array($payload['checkout'] ?? null) ? $payload['checkout'] : [];
+        $shipping = is_array($checkout['shipping'] ?? null) ? $checkout['shipping'] : [];
+        $billing = is_array($checkout['billing'] ?? null) ? $checkout['billing'] : [];
+        $shippingMethod = clean_string((string) ($checkout['shipping_method'] ?? 'standard'), 40);
+        $paymentMeta = resolve_checkout_payment((string) ($checkout['payment_method'] ?? ''));
+        $initialStatus = $paymentMeta['status'] === 'payment_pending' ? 'Fizetésre vár' : 'Feldolgozás alatt';
         if (!$items) {
             send_json(['ok' => false, 'error' => 'A kosár üres.'], 422);
+        }
+        if (!in_array($shippingMethod, ['standard', 'express', 'pickup'], true)) {
+            send_json(['ok' => false, 'error' => 'Érvénytelen szállítási mód.'], 422);
+        }
+        $shippingName = clean_string((string) ($shipping['name'] ?? ''), 120);
+        $shippingPhone = clean_string((string) ($shipping['phone'] ?? ''), 40);
+        $shippingAddress = clean_string((string) ($shipping['address'] ?? ''), 255);
+        $shippingCity = clean_string((string) ($shipping['city'] ?? ''), 120);
+        $shippingPostal = clean_string((string) ($shipping['postal_code'] ?? ''), 20);
+        $billingName = clean_string((string) ($billing['name'] ?? ''), 120);
+        $billingTaxNumber = clean_string((string) ($billing['tax_number'] ?? ''), 60);
+        $billingAddress = clean_string((string) ($billing['address'] ?? ''), 255);
+        $billingCity = clean_string((string) ($billing['city'] ?? ''), 120);
+        $billingPostal = clean_string((string) ($billing['postal_code'] ?? ''), 20);
+        if (
+            $shippingName === '' || $shippingAddress === '' || $shippingCity === '' || $shippingPostal === ''
+            || $billingName === '' || $billingAddress === '' || $billingCity === '' || $billingPostal === ''
+        ) {
+            send_json(['ok' => false, 'error' => 'Hiányos szállítási vagy számlázási adatok.'], 422);
         }
 
         $pdo = db();
@@ -106,8 +134,33 @@ if ($method === 'POST') {
                 throw new RuntimeException('Nincs rendelhető tétel a kosárban.');
             }
 
-            $orderStmt = $pdo->prepare('INSERT INTO orders (user_id, total, status) VALUES (?, ?, ?)');
-            $orderStmt->execute([$user ? (int) $user['id'] : null, $total, 'Feldolgozás alatt']);
+            $orderStmt = $pdo->prepare(
+                'INSERT INTO orders (
+                    user_id, total,
+                    shipping_name, shipping_phone, shipping_postal_code, shipping_city, shipping_address,
+                    billing_name, billing_tax_number, billing_postal_code, billing_city, billing_address,
+                    shipping_method, payment_method, payment_provider, payment_status, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+            $orderStmt->execute([
+                $user ? (int) $user['id'] : null,
+                $total,
+                $shippingName,
+                $shippingPhone ?: null,
+                $shippingPostal,
+                $shippingCity,
+                $shippingAddress,
+                $billingName,
+                $billingTaxNumber ?: null,
+                $billingPostal,
+                $billingCity,
+                $billingAddress,
+                $shippingMethod,
+                $paymentMeta['method'],
+                $paymentMeta['provider'],
+                $paymentMeta['status'],
+                $initialStatus,
+            ]);
             $orderId = (int) $pdo->lastInsertId();
 
             $itemStmt = $pdo->prepare('INSERT INTO order_items (order_id, product_id, qty, unit_price) VALUES (?, ?, ?, ?)');
@@ -121,7 +174,35 @@ if ($method === 'POST') {
             }
 
             $pdo->commit();
-            send_json(['ok' => true, 'order_id' => $orderId], 201);
+            $mailWarning = null;
+            try {
+                $mailUserStmt = $pdo->prepare('SELECT name, email FROM users WHERE id = ? LIMIT 1');
+                $mailUserStmt->execute([(int) $user['id']]);
+                $mailUser = $mailUserStmt->fetch() ?: ['name' => $user['name'] ?? '', 'email' => $user['email'] ?? ''];
+                $isPaymentPending = $paymentMeta['status'] === 'payment_pending';
+                $subject = $isPaymentPending
+                    ? sprintf('Rendelés rögzítve, fizetés függőben #%d', $orderId)
+                    : sprintf('Rendelés visszaigazolás #%d', $orderId);
+                $htmlBody = sprintf(
+                    '<p>Kedves %s!</p><p>%s Azonosító: <strong>#%d</strong>.</p><p>Végösszeg: <strong>%s Ft</strong>, fizetés: <strong>%s</strong>.</p>',
+                    htmlspecialchars((string) ($mailUser['name'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+                    $isPaymentPending ? 'Rendelését rögzítettük, az online fizetés megerősítésére várunk.' : 'Köszönjük rendelését.',
+                    $orderId,
+                    number_format($total, 0, ',', ' '),
+                    htmlspecialchars((string) $paymentMeta['method'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+                );
+                send_app_mail((string) ($mailUser['email'] ?? ''), (string) ($mailUser['name'] ?? ''), $subject, $htmlBody);
+            } catch (Throwable $mailException) {
+                $mailWarning = 'A visszaigazoló e-mail küldése sikertelen, de a rendelés rögzítve lett.';
+            }
+
+            send_json([
+                'ok' => true,
+                'order_id' => $orderId,
+                'payment' => $paymentMeta,
+                'shipping_method' => $shippingMethod,
+                'warning' => $mailWarning,
+            ], 201);
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
@@ -134,10 +215,10 @@ if ($method === 'POST') {
     }
 
     if ($action === 'update_status') {
-        require_admin();
+        $adminUser = require_admin();
         $id = (int) ($payload['id'] ?? 0);
         $status = clean_string($payload['status'] ?? '', 60);
-        $allowedStatuses = ['Feldolgozás alatt', 'Teljesítve', 'Lemondva'];
+        $allowedStatuses = ['Fizetésre vár', 'Feldolgozás alatt', 'Teljesítve', 'Lemondva'];
         if ($id <= 0 || !in_array($status, $allowedStatuses, true)) {
             send_json(['ok' => false, 'error' => 'Hiányzó rendelés adatok.'], 422);
         }
@@ -179,6 +260,7 @@ if ($method === 'POST') {
             $updateStmt = $pdo->prepare('UPDATE orders SET status = ? WHERE id = ?');
             $updateStmt->execute([$status, $id]);
             $pdo->commit();
+            log_admin_activity((int) $adminUser['id'], 'order_status_update', 'order', $id, ['status' => $status]);
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
