@@ -262,6 +262,11 @@ Minden új SQL művelet prepared statementet használ.
 - SMTP jelszót vagy teljes éles konfigurációt ne naplózz, ne commitolj és ne jeleníts meg a kliensoldalon.
 - A support admin műveletek kizárólag admin sessionnel érhetők el.
 - Az SMTP diagnosztika és próba-e-mail műveletek kizárólag admin sessionnel és CSRF tokennel érhetők el.
+- A webshop árak és a kosár műveletek csak aktív, bejelentkezett felhasználó számára érhetők el.
+- Vendég vagy inaktív user esetén a `GET api/products.php` válaszban a `price` mező `null`, és `price_visible: false` érték érkezik.
+- Bejelentkezett aktív user esetén a `GET api/products.php` visszaadja a valós árat és `price_visible: true` értéket.
+- A rendelési végpont (`api/orders.php`) hitelesített sessiont igényel; jogosulatlan kérésnél egységes `401` JSON válasz érkezik.
+- Checkoutnál a backend minden tétel árát adatbázisból tölti, és a végösszeget szerveroldalon számolja újra (a kliensár nem megbízható forrás).
 
 ## 10) cPanel workflow (terminál nélkül)
 
@@ -315,7 +320,7 @@ Minden új SQL művelet prepared statementet használ.
 - `api/users.php` – admin user CRUD + admin jelszócsere
 - `api/categories.php` – korlátlan mélységű kategóriafa CRUD + flat/tree lista
 - `api/products.php` – termék CRUD
-- `api/orders.php` – checkout + rendelés lista + státusz frissítés
+- `api/orders.php` – hitelesített checkout + rendelés lista + státusz frissítés
 - `api/quotes.php` – ajánlatkérés létrehozás + admin válaszkezelés
 - `api/support.php` – publikus support chat létrehozás + ügyfél előzmények lekérése
 - `api/support-chats.php` – admin support inbox + részletek + reply + mark-read + státuszfrissítés

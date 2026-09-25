@@ -89,9 +89,10 @@
                 </nav>
 
                 <div class="flex items-center space-x-4">
-                    <button onclick="toggleCartModal()" class="relative p-2.5 text-slate-300 hover:text-amber-400 hover:bg-slate-800 rounded-xl transition-all">
+                    <button onclick="handleCartClick()" class="relative p-2.5 text-slate-300 hover:text-amber-400 hover:bg-slate-800 rounded-xl transition-all">
                         <i class="fa-solid fa-shopping-cart text-lg"></i>
                         <span id="cart-badge" class="absolute -top-1 -right-1 bg-amber-500 text-slate-950 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center hidden">0</span>
+                        <span id="cart-lock-indicator" class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-slate-700 text-slate-200 text-[10px] items-center justify-center hidden"><i class="fa-solid fa-lock"></i></span>
                     </button>
 
                     <div id="auth-buttons-container">
@@ -1164,6 +1165,22 @@
         <span id="toast-message">Sikeres művelet!</span>
     </div>
 
+    <div id="auth-required-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center"><i class="fa-solid fa-lock mr-2 text-amber-400"></i> Bejelentkezés szükséges</h3>
+                    <p class="text-sm text-slate-400 mt-1">Az árak és a kosár használatához jelentkezzen be vagy regisztráljon.</p>
+                </div>
+                <button onclick="closeAuthRequiredModal()" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="openAuthFromPrompt('login')" class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">Bejelentkezés</button>
+                <button onclick="openAuthFromPrompt('register')" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl border border-slate-700 transition-colors">Regisztráció</button>
+            </div>
+        </div>
+    </div>
+
     <footer class="bg-slate-950 border-t border-slate-800 py-12 mt-20">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid md:grid-cols-4 gap-8">
             <div class="space-y-4">
@@ -1251,6 +1268,7 @@
             },
             calcData: { area: 70, wiringType: 'full', alarmQty: 1, cameraQty: 2, intercom: false, total: 0 }
         };
+        let pendingProtectedAction = null;
 
         function esc(text) {
             return String(text ?? '')
@@ -1259,6 +1277,41 @@
                 .replaceAll('>', '&gt;')
                 .replaceAll('"', '&quot;')
                 .replaceAll("'", '&#039;');
+        }
+
+        function canUseCommerceFeatures() {
+            return Boolean(state.currentUser);
+        }
+
+        function clearCartForGuest() {
+            state.cart = [];
+            localStorage.removeItem('tb_cart');
+        }
+
+        function closeAuthRequiredModal() {
+            document.getElementById('auth-required-modal').classList.add('hidden');
+        }
+
+        function openAuthFromPrompt(tab) {
+            closeAuthRequiredModal();
+            openAuthModal(tab);
+        }
+
+        function runPendingProtectedAction() {
+            if (typeof pendingProtectedAction !== 'function') return;
+            const action = pendingProtectedAction;
+            pendingProtectedAction = null;
+            action();
+        }
+
+        function requireAuthentication(action) {
+            if (canUseCommerceFeatures()) return true;
+            if (typeof action === 'function') {
+                pendingProtectedAction = action;
+            }
+            document.getElementById('auth-required-modal').classList.remove('hidden');
+            showToast('Az árak és a kosár használatához jelentkezzen be vagy regisztráljon.');
+            return false;
         }
 
         function formatDateTime(value) {
@@ -1645,6 +1698,10 @@
         }
 
         function saveState() {
+            if (!canUseCommerceFeatures()) {
+                localStorage.removeItem('tb_cart');
+                return;
+            }
             localStorage.setItem('tb_cart', JSON.stringify(state.cart));
         }
 
@@ -1775,6 +1832,8 @@
                     await Promise.all([loadQuotes(), loadSupportChats(), loadUsers()]);
                 }
             } else {
+                clearCartForGuest();
+                document.getElementById('cart-modal')?.classList.add('hidden');
                 state.orders = [];
                 state.estimates = [];
                 state.quotes = [];
@@ -2027,7 +2086,9 @@
                     <div class="mt-6 pt-3 border-t border-slate-700 flex items-center justify-between">
                         <div>
                             <span class="text-xs text-slate-400 block">Raktáron: ${p.stock} db</span>
-                            <span class="text-lg font-black text-white">${Number(p.price).toLocaleString('hu-HU')} Ft</span>
+                            ${p.price_visible
+                                ? `<span class="text-lg font-black text-white">${Number(p.price).toLocaleString('hu-HU')} Ft</span>`
+                                : `<button onclick="requireAuthentication()" class="text-left text-sm font-semibold text-amber-400 hover:text-amber-300 flex items-center"><i class="fa-solid fa-lock mr-2"></i>Az ár megtekintéséhez jelentkezzen be</button>`}
                         </div>
                         <button onclick="addToCart(${p.id})" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-2.5 rounded-xl transition-colors">
                             <i class="fa-solid fa-cart-plus"></i>
@@ -2038,6 +2099,9 @@
         }
 
         function addToCart(productId) {
+            if (!requireAuthentication(() => addToCart(productId))) {
+                return;
+            }
             const product = state.products.find(p => p.id === productId);
             if (!product) return;
 
@@ -2054,6 +2118,15 @@
 
         function updateCartBadge() {
             const badge = document.getElementById('cart-badge');
+            const lockIndicator = document.getElementById('cart-lock-indicator');
+            if (!canUseCommerceFeatures()) {
+                badge.classList.add('hidden');
+                lockIndicator.classList.remove('hidden');
+                lockIndicator.classList.add('flex');
+                return;
+            }
+            lockIndicator.classList.remove('flex');
+            lockIndicator.classList.add('hidden');
             const totalQty = state.cart.reduce((sum, item) => sum + item.qty, 0);
             if (totalQty > 0) {
                 badge.innerText = totalQty;
@@ -2063,7 +2136,18 @@
             }
         }
 
+        function handleCartClick() {
+            if (!requireAuthentication(() => toggleCartModal())) {
+                return;
+            }
+            toggleCartModal();
+        }
+
         function toggleCartModal() {
+            if (!canUseCommerceFeatures()) {
+                requireAuthentication(() => toggleCartModal());
+                return;
+            }
             const modal = document.getElementById('cart-modal');
             modal.classList.toggle('hidden');
             if (!modal.classList.contains('hidden')) renderCartItems();
@@ -2099,6 +2183,10 @@
         }
 
         function updateCartQty(index, delta) {
+            if (!canUseCommerceFeatures()) {
+                requireAuthentication();
+                return;
+            }
             state.cart[index].qty += delta;
             if (state.cart[index].qty <= 0) state.cart.splice(index, 1);
             saveState();
@@ -2108,9 +2196,7 @@
 
         async function checkoutCart() {
             if (state.cart.length === 0) return;
-            if (!state.currentUser) {
-                openAuthModal('login');
-                showToast('Rendelés leadásához bejelentkezés szükséges.');
+            if (!requireAuthentication(() => checkoutCart())) {
                 return;
             }
             try {
@@ -2164,8 +2250,10 @@
                     body: JSON.stringify({ email, password })
                 });
                 await refreshData();
+                closeAuthRequiredModal();
                 closeAuthModal();
                 showToast('Sikeres bejelentkezés!');
+                runPendingProtectedAction();
             } catch (err) {
                 showToast(err.message);
             }
@@ -2183,8 +2271,10 @@
                     body: JSON.stringify({ name, email, password })
                 });
                 await refreshData();
+                closeAuthRequiredModal();
                 closeAuthModal();
                 showToast('Fiók sikeresen létrehozva!');
+                runPendingProtectedAction();
             } catch (err) {
                 showToast(err.message);
             }
@@ -2199,8 +2289,10 @@
                     body: JSON.stringify({ email: 'admin@tamasbau.hu', password })
                 });
                 await refreshData();
+                closeAuthRequiredModal();
                 closeAuthModal();
                 showToast('Bejelentkezve Adminisztrátorként!');
+                runPendingProtectedAction();
                 showPage('admin');
             } catch (err) {
                 showToast('Demo admin bejelentkezés sikertelen: ' + err.message);
@@ -2211,8 +2303,12 @@
             try {
                 await apiFetch(`${API.auth}?action=logout`, { method: 'POST', body: JSON.stringify({}) });
             } catch (_) {}
+            closeAuthRequiredModal();
             state.currentUser = null;
             state.csrfToken = null;
+            pendingProtectedAction = null;
+            clearCartForGuest();
+            document.getElementById('cart-modal')?.classList.add('hidden');
             state.orders = [];
             state.estimates = [];
             state.users = [];
@@ -2226,6 +2322,8 @@
             localStorage.removeItem('tb_csrf');
             await loadPublicSupportChat(true);
             updateAuthUI();
+            updateCartBadge();
+            renderShopProducts();
             updateQuoteIndicators();
             updateSupportIndicators();
             showPage('home');
