@@ -263,7 +263,7 @@ Minden új SQL művelet prepared statementet használ.
 - A support admin műveletek kizárólag admin sessionnel érhetők el.
 - Az SMTP diagnosztika és próba-e-mail műveletek kizárólag admin sessionnel és CSRF tokennel érhetők el.
 - A webshop árak és a kosár műveletek csak aktív, bejelentkezett felhasználó számára érhetők el.
-- Vendég vagy inaktív user esetén a `GET api/products.php` válaszban a `price` mező `null`, és `price_visible: false` érték érkezik.
+- Vendég vagy inaktív user esetén (az inaktív usert a `current_user()` nullként kezeli) a `GET api/products.php` válaszban a `price` mező `null`, és `price_visible: false` érték érkezik.
 - Bejelentkezett aktív user esetén a `GET api/products.php` visszaadja a valós árat és `price_visible: true` értéket.
 - A rendelési végpont (`api/orders.php`) hitelesített sessiont igényel; jogosulatlan kérésnél egységes `401` JSON válasz érkezik.
 - Checkoutnál a backend minden tétel árát adatbázisból tölti, és a végösszeget szerveroldalon számolja újra (a kliensár nem megbízható forrás).

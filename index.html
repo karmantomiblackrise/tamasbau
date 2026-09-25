@@ -2126,6 +2126,7 @@
             const badge = document.getElementById('cart-badge');
             const lockIndicator = document.getElementById('cart-lock-indicator');
             if (!canUseCommerceFeatures()) {
+                badge.innerText = '0';
                 badge.classList.add('hidden');
                 lockIndicator.classList.remove('hidden');
                 lockIndicator.classList.add('flex');
