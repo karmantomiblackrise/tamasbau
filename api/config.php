@@ -399,10 +399,16 @@ function require_login(): array
     return $user;
 }
 
+function user_has_role(array $user, array $allowedRoles): bool
+{
+    $role = (string) ($user['role'] ?? 'user');
+    return in_array($role, $allowedRoles, true);
+}
+
 function require_admin(): array
 {
     $user = require_login();
-    if (($user['role'] ?? 'user') !== 'admin') {
+    if (!user_has_role($user, ['admin', 'superadmin'])) {
         send_json(['ok' => false, 'error' => 'Nincs jogosultsága ehhez a művelethez.'], 403);
     }
     return $user;
