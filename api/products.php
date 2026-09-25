@@ -90,6 +90,7 @@ if ($method === 'GET') {
 }
 
 require_admin();
+$adminUser = current_user();
 
 if ($method === 'POST') {
     $action = clean_string($payload['action'] ?? '');
@@ -112,7 +113,11 @@ if ($method === 'POST') {
 
         $stmt = db()->prepare('INSERT INTO products (name, category_id, price, stock, icon, image_url, description) VALUES (?, ?, ?, ?, ?, ?, ?)');
         $stmt->execute([$name, $categoryId, $price, $stock, $icon ?: 'fa-box', $imageUrl ?: null, $description]);
-        send_json(['ok' => true, 'id' => (int) db()->lastInsertId()], 201);
+        $newId = (int) db()->lastInsertId();
+        if ($adminUser) {
+            log_admin_activity((int) $adminUser['id'], 'product_create', 'product', $newId, ['name' => $name]);
+        }
+        send_json(['ok' => true, 'id' => $newId], 201);
     }
 
     if ($action === 'update') {
@@ -141,6 +146,9 @@ if ($method === 'POST') {
                 send_json(['ok' => false, 'error' => 'Termék nem található.'], 404);
             }
         }
+        if ($adminUser) {
+            log_admin_activity((int) $adminUser['id'], 'product_update', 'product', $id, ['name' => $name, 'stock' => $stock, 'price' => $price]);
+        }
         send_json(['ok' => true]);
     }
 
@@ -157,6 +165,9 @@ if ($method === 'POST') {
         }
         if ($stmt->rowCount() === 0) {
             send_json(['ok' => false, 'error' => 'Termék nem található.'], 404);
+        }
+        if ($adminUser) {
+            log_admin_activity((int) $adminUser['id'], 'product_delete', 'product', $id);
         }
         send_json(['ok' => true]);
     }

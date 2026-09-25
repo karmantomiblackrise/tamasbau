@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/checkout-payment.php';
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $payload = get_json_input();
@@ -71,9 +72,32 @@ if ($method === 'POST') {
 
     if ($action === 'create') {
         $user = require_login();
+        enforce_rate_limit('checkout_create', 12, 900);
         $items = is_array($payload['items'] ?? null) ? $payload['items'] : [];
+        $checkout = is_array($payload['checkout'] ?? null) ? $payload['checkout'] : [];
+        $shipping = is_array($checkout['shipping'] ?? null) ? $checkout['shipping'] : [];
+        $billing = is_array($checkout['billing'] ?? null) ? $checkout['billing'] : [];
+        $shippingMethod = clean_string((string) ($checkout['shipping_method'] ?? 'standard'), 40);
+        $paymentMeta = resolve_checkout_payment((string) ($checkout['payment_method'] ?? ''));
         if (!$items) {
             send_json(['ok' => false, 'error' => 'A kosár üres.'], 422);
+        }
+        if (!in_array($shippingMethod, ['standard', 'express', 'pickup'], true)) {
+            send_json(['ok' => false, 'error' => 'Érvénytelen szállítási mód.'], 422);
+        }
+        $shippingName = clean_string((string) ($shipping['name'] ?? ''), 120);
+        $shippingAddress = clean_string((string) ($shipping['address'] ?? ''), 255);
+        $shippingCity = clean_string((string) ($shipping['city'] ?? ''), 120);
+        $shippingPostal = clean_string((string) ($shipping['postal_code'] ?? ''), 20);
+        $billingName = clean_string((string) ($billing['name'] ?? ''), 120);
+        $billingAddress = clean_string((string) ($billing['address'] ?? ''), 255);
+        $billingCity = clean_string((string) ($billing['city'] ?? ''), 120);
+        $billingPostal = clean_string((string) ($billing['postal_code'] ?? ''), 20);
+        if (
+            $shippingName === '' || $shippingAddress === '' || $shippingCity === '' || $shippingPostal === ''
+            || $billingName === '' || $billingAddress === '' || $billingCity === '' || $billingPostal === ''
+        ) {
+            send_json(['ok' => false, 'error' => 'Hiányos szállítási vagy számlázási adatok.'], 422);
         }
 
         $pdo = db();
@@ -121,7 +145,28 @@ if ($method === 'POST') {
             }
 
             $pdo->commit();
-            send_json(['ok' => true, 'order_id' => $orderId], 201);
+            $mailWarning = null;
+            try {
+                $subject = sprintf('Rendelés visszaigazolás #%d', $orderId);
+                $htmlBody = sprintf(
+                    '<p>Kedves %s!</p><p>Köszönjük rendelését. Azonosító: <strong>#%d</strong>.</p><p>Végösszeg: <strong>%s Ft</strong>, fizetés: <strong>%s</strong>.</p>',
+                    htmlspecialchars((string) $user['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+                    $orderId,
+                    number_format($total, 0, ',', ' '),
+                    htmlspecialchars((string) $paymentMeta['method'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+                );
+                send_app_mail((string) $user['email'], (string) $user['name'], $subject, $htmlBody);
+            } catch (Throwable $mailException) {
+                $mailWarning = 'A visszaigazoló e-mail küldése sikertelen, de a rendelés rögzítve lett.';
+            }
+
+            send_json([
+                'ok' => true,
+                'order_id' => $orderId,
+                'payment' => $paymentMeta,
+                'shipping_method' => $shippingMethod,
+                'warning' => $mailWarning,
+            ], 201);
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
@@ -134,7 +179,7 @@ if ($method === 'POST') {
     }
 
     if ($action === 'update_status') {
-        require_admin();
+        $adminUser = require_admin();
         $id = (int) ($payload['id'] ?? 0);
         $status = clean_string($payload['status'] ?? '', 60);
         $allowedStatuses = ['Feldolgozás alatt', 'Teljesítve', 'Lemondva'];
@@ -179,6 +224,7 @@ if ($method === 'POST') {
             $updateStmt = $pdo->prepare('UPDATE orders SET status = ? WHERE id = ?');
             $updateStmt->execute([$status, $id]);
             $pdo->commit();
+            log_admin_activity((int) $adminUser['id'], 'order_status_update', 'order', $id, ['status' => $status]);
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();

@@ -8,6 +8,7 @@ $payload = get_json_input();
 
 if ($method === 'POST') {
     validate_csrf_token();
+    enforce_rate_limit('support_post', 30, 900);
 
     $action = clean_string((string) ($payload['action'] ?? 'create'), 40);
     $sessionUser = current_user();
@@ -48,6 +49,7 @@ if ($method === 'POST') {
 }
 
 if ($method === 'GET') {
+    enforce_rate_limit('support_get', 120, 900);
     $sessionUser = current_user();
     $email = clean_string((string) ($_GET['email'] ?? ($sessionUser['email'] ?? '')), 190);
     $chatId = (int) ($_GET['chat_id'] ?? 0);

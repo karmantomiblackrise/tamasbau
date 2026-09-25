@@ -29,6 +29,7 @@ if ($method === 'GET' && $action === 'me') {
 }
 
 if ($method === 'POST' && $action === 'register') {
+    enforce_rate_limit('auth_register', 8, 900);
     $name = clean_string($payload['name'] ?? '', 120);
     $email = clean_string($payload['email'] ?? '', 190);
     $password = (string) ($payload['password'] ?? '');
@@ -54,6 +55,7 @@ if ($method === 'POST' && $action === 'register') {
 }
 
 if ($method === 'POST' && $action === 'login') {
+    enforce_rate_limit('auth_login', 12, 900);
     $email = clean_string($payload['email'] ?? '', 190);
     $password = (string) ($payload['password'] ?? '');
 
@@ -76,7 +78,11 @@ if ($method === 'POST' && $action === 'login') {
     session_regenerate_id(true);
     $loginUserId = (int) $row['id'];
     $_SESSION['user_id'] = $loginUserId;
-    send_json(['ok' => true, 'user' => user_payload_by_id($loginUserId), 'csrf_token' => csrf_token()]);
+    $loggedUser = user_payload_by_id($loginUserId);
+    if ($loggedUser && ($loggedUser['role'] ?? 'user') === 'admin') {
+        log_admin_activity($loginUserId, 'admin_login', 'user', $loginUserId);
+    }
+    send_json(['ok' => true, 'user' => $loggedUser, 'csrf_token' => csrf_token()]);
 }
 
 if ($method === 'POST' && $action === 'logout') {

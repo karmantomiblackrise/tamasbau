@@ -21,6 +21,17 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
 
+apply_security_headers();
+
+function apply_security_headers(): void
+{
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: SAMEORIGIN');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+    header("Content-Security-Policy: default-src 'none'; frame-ancestors 'self'; base-uri 'none'");
+}
+
 function load_env_file(string $path): void
 {
     static $loaded = [];
@@ -246,6 +257,47 @@ function clean_string(?string $value, int $max = 255): string
     if (mb_strlen($value) > $max) {
         $value = mb_substr($value, 0, $max);
     }
+
+    function client_rate_limit_identity(): string
+    {
+        $user = current_user();
+        if ($user) {
+            return 'user:' . (int) $user['id'];
+        }
+        $ip = trim((string) ($_SERVER['REMOTE_ADDR'] ?? 'guest'));
+        if ($ip === '') {
+            $ip = 'guest';
+        }
+        return 'ip:' . $ip;
+    }
+
+    function enforce_rate_limit(string $bucket, int $maxRequests, int $windowSeconds): void
+    {
+        if ($maxRequests <= 0 || $windowSeconds <= 0) {
+            return;
+        }
+
+        if (!isset($_SESSION['rate_limits']) || !is_array($_SESSION['rate_limits'])) {
+            $_SESSION['rate_limits'] = [];
+        }
+
+        $identity = client_rate_limit_identity();
+        $key = $bucket . '|' . $identity;
+        $now = time();
+        $windowStart = $now - $windowSeconds;
+        $history = $_SESSION['rate_limits'][$key] ?? [];
+        if (!is_array($history)) {
+            $history = [];
+        }
+
+        $history = array_values(array_filter($history, static fn($ts): bool => is_int($ts) && $ts >= $windowStart));
+        if (count($history) >= $maxRequests) {
+            send_json(['ok' => false, 'error' => 'Túl sok kérés, kérjük próbálja újra később.'], 429);
+        }
+
+        $history[] = $now;
+        $_SESSION['rate_limits'][$key] = $history;
+    }
     return $value;
 }
 
@@ -327,6 +379,21 @@ function require_admin(): array
     $user = require_login();
     if (($user['role'] ?? 'user') !== 'admin') {
         send_json(['ok' => false, 'error' => 'Nincs jogosultsága ehhez a művelethez.'], 403);
+    }
+
+    function log_admin_activity(int $adminUserId, string $eventType, ?string $targetType = null, ?int $targetId = null, ?array $details = null): void
+    {
+        try {
+            $stmt = db()->prepare('INSERT INTO admin_activity_logs (admin_user_id, event_type, target_type, target_id, details) VALUES (?, ?, ?, ?, ?)');
+            $stmt->execute([
+                $adminUserId,
+                clean_string($eventType, 80),
+                $targetType !== null ? clean_string($targetType, 80) : null,
+                $targetId,
+                $details ? json_encode($details, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+            ]);
+        } catch (Throwable $e) {
+        }
     }
     return $user;
 }
