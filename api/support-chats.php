@@ -9,6 +9,7 @@ $payload = get_json_input();
 
 if ($method === 'GET') {
     $chatId = (int) ($_GET['id'] ?? 0);
+    $scope = support_normalize_scope(clean_string((string) ($_GET['scope'] ?? 'active'), 20));
     if ($chatId > 0) {
         $chat = support_chat_detail_payload($chatId);
         if ($chat === null) {
@@ -17,7 +18,12 @@ if ($method === 'GET') {
         send_json(['ok' => true, 'chat' => $chat]);
     }
 
-    send_json(['ok' => true, 'chats' => support_list_chats()]);
+    send_json([
+        'ok' => true,
+        'scope' => $scope,
+        'summary' => support_list_summary(),
+        'chats' => support_list_chats($scope),
+    ]);
 }
 
 if ($method === 'POST') {
@@ -43,6 +49,8 @@ if ($method === 'POST') {
             $chat = support_create_admin_reply($chatId, $admin, $message, $status !== '' ? $status : null);
         } catch (OutOfBoundsException $e) {
             send_json(['ok' => false, 'error' => $e->getMessage()], 404);
+        } catch (DomainException $e) {
+            send_json(['ok' => false, 'error' => $e->getMessage()], 422);
         } catch (Throwable $e) {
             send_json(['ok' => false, 'error' => 'Az admin válasz mentése sikertelen.'], 500);
         }
@@ -64,10 +72,32 @@ if ($method === 'POST') {
             send_json(['ok' => false, 'error' => 'Érvénytelen support chat státusz.'], 422);
         }
 
-        $chat = support_update_chat_status($chatId, $status);
+        try {
+            $chat = support_update_chat_status($chatId, $status);
+        } catch (DomainException $e) {
+            send_json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
         if ($chat === null) {
             send_json(['ok' => false, 'error' => 'Support chat nem található.'], 404);
         }
+        send_json(['ok' => true, 'chat' => $chat]);
+    }
+
+    if ($action === 'archive' || $action === 'delete' || $action === 'restore') {
+        $archived = $action === 'restore'
+            ? false
+            : filter_var($payload['archived'] ?? true, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        $archived = $archived !== false;
+
+        try {
+            $chat = support_archive_chat($chatId, $archived);
+        } catch (DomainException $e) {
+            send_json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+        if ($chat === null) {
+            send_json(['ok' => false, 'error' => 'Support chat nem található.'], 404);
+        }
+
         send_json(['ok' => true, 'chat' => $chat]);
     }
 }
