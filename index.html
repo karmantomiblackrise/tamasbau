@@ -1172,7 +1172,7 @@
                     <h3 id="auth-required-title" class="text-lg font-bold text-white flex items-center"><i class="fa-solid fa-lock mr-2 text-amber-400"></i> Bejelentkezés szükséges</h3>
                     <p class="text-sm text-slate-400 mt-1">Az árak és a kosár használatához jelentkezzen be vagy regisztráljon.</p>
                 </div>
-                <button onclick="closeAuthRequiredModal()" aria-label="Hitelesítési felhívás bezárása" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+                <button id="auth-required-close-btn" onclick="closeAuthRequiredModal()" aria-label="Hitelesítési felhívás bezárása" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <button onclick="openAuthFromPrompt('login')" class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">Bejelentkezés</button>
@@ -1325,13 +1325,40 @@
             modal.classList.remove('hidden');
             if (wasHidden) {
                 showToast('Az árak és a kosár használatához jelentkezzen be vagy regisztráljon.');
+                setTimeout(() => {
+                    document.getElementById('auth-required-close-btn')?.focus();
+                }, 0);
             }
             return false;
         }
 
+        function getAuthRequiredFocusableElements() {
+            const modal = document.getElementById('auth-required-modal');
+            if (!modal || modal.classList.contains('hidden')) return [];
+            return Array.from(modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+                .filter(el => !el.hasAttribute('disabled'));
+        }
+
         function handleAuthRequiredModalKeydown(event) {
+            const modal = document.getElementById('auth-required-modal');
+            if (!modal || modal.classList.contains('hidden')) return;
             if (event.key === 'Escape') {
                 closeAuthRequiredModal();
+                return;
+            }
+            if (event.key === 'Tab') {
+                const focusable = getAuthRequiredFocusableElements();
+                if (!focusable.length) return;
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                const active = document.activeElement;
+                if (event.shiftKey && active === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && active === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
             }
         }
 
