@@ -2100,10 +2100,7 @@
             `).join('') || `<p class="text-slate-400 text-sm col-span-full">Nincs találat a megadott szűrőkkel.</p>`;
         }
 
-        function addToCart(productId) {
-            if (!requireAuthentication(() => addToCart(productId))) {
-                return;
-            }
+        function addToCartInternal(productId) {
             const product = state.products.find(p => p.id === productId);
             if (!product) return;
 
@@ -2116,6 +2113,13 @@
             saveState();
             updateCartBadge();
             showToast(`${product.name} a kosárba került!`);
+        }
+
+        function addToCart(productId) {
+            if (!requireAuthentication(() => addToCartInternal(productId))) {
+                return;
+            }
+            addToCartInternal(productId);
         }
 
         function updateCartBadge() {
@@ -2139,7 +2143,7 @@
         }
 
         function handleCartClick() {
-            if (!requireAuthentication(handleCartClick)) {
+            if (!requireAuthentication(() => toggleCartModal())) {
                 return;
             }
             toggleCartModal();
@@ -2192,11 +2196,9 @@
             renderCartItems();
         }
 
-        async function checkoutCart() {
+        async function checkoutCartInternal() {
             if (state.cart.length === 0) return;
-            if (!requireAuthentication(() => checkoutCart())) {
-                return;
-            }
+            if (!canUseCommerceFeatures()) return;
             try {
                 await apiFetch(API.orders, {
                     method: 'POST',
@@ -2212,6 +2214,14 @@
             } catch (err) {
                 showToast(err.message);
             }
+        }
+
+        async function checkoutCart() {
+            if (state.cart.length === 0) return;
+            if (!requireAuthentication(() => checkoutCartInternal())) {
+                return;
+            }
+            await checkoutCartInternal();
         }
 
         function openAuthModal(tab) {
