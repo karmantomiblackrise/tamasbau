@@ -27,7 +27,7 @@ CREATE TABLE users (
   name VARCHAR(120) NOT NULL,
   email VARCHAR(190) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  role ENUM('user', 'admin', 'superadmin', 'webshop_manager', 'quote_manager', 'support_agent', 'accountant', 'content_manager') NOT NULL DEFAULT 'user',
+  role ENUM('user', 'admin', 'superadmin') NOT NULL DEFAULT 'user',
   phone VARCHAR(30) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   is_active TINYINT(1) NOT NULL DEFAULT 1

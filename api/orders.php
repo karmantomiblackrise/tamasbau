@@ -14,6 +14,27 @@ function final_order_statuses(): array
     return ['cancelled', 'refunded'];
 }
 
+function reversal_order_statuses(): array
+{
+    return ['cancelled', 'refunded'];
+}
+
+function order_status_label(string $status): string
+{
+    $status = normalize_order_status_value($status);
+    $labels = [
+        'new' => 'Új',
+        'payment_pending' => 'Fizetésre vár',
+        'processing' => 'Feldolgozás alatt',
+        'packing' => 'Csomagolás alatt',
+        'shipped' => 'Átadva futárnak',
+        'completed' => 'Teljesítve',
+        'cancelled' => 'Lemondva',
+        'refunded' => 'Visszatérítve',
+    ];
+    return $labels[$status] ?? $status;
+}
+
 function normalize_order_status_value(string $status): string
 {
     $normalized = strtolower(trim($status));
@@ -41,7 +62,7 @@ function can_transition_order_status(string $from, string $to): bool
         'packing' => ['shipped', 'cancelled'],
         'shipped' => ['completed', 'refunded'],
         'completed' => ['refunded'],
-        'cancelled' => ['processing'],
+        'cancelled' => [],
         'refunded' => [],
     ];
 
@@ -50,20 +71,14 @@ function can_transition_order_status(string $from, string $to): bool
 
 function insert_order_status_log(PDO $pdo, int $orderId, string $fromStatus, string $toStatus, ?int $adminUserId, ?string $note = null): void
 {
-    try {
-        $stmt = $pdo->prepare('INSERT INTO order_status_logs (order_id, from_status, to_status, changed_by_user_id, note) VALUES (?, ?, ?, ?, ?)');
-        $stmt->execute([$orderId, $fromStatus, $toStatus, $adminUserId, $note]);
-    } catch (Throwable $e) {
-    }
+    $stmt = $pdo->prepare('INSERT INTO order_status_logs (order_id, from_status, to_status, changed_by_user_id, note) VALUES (?, ?, ?, ?, ?)');
+    $stmt->execute([$orderId, $fromStatus, $toStatus, $adminUserId, $note]);
 }
 
 function insert_stock_movement(PDO $pdo, int $productId, int $orderId, string $type, int $qty, ?string $note = null): void
 {
-    try {
-        $stmt = $pdo->prepare('INSERT INTO stock_movements (product_id, order_id, movement_type, qty, note) VALUES (?, ?, ?, ?, ?)');
-        $stmt->execute([$productId, $orderId, $type, $qty, $note]);
-    } catch (Throwable $e) {
-    }
+    $stmt = $pdo->prepare('INSERT INTO stock_movements (product_id, order_id, movement_type, qty, note) VALUES (?, ?, ?, ?, ?)');
+    $stmt->execute([$productId, $orderId, $type, $qty, $note]);
 }
 
 function send_order_status_email(int $orderId, ?int $userId, string $status, ?string $trackingNumber = null, ?string $trackingUrl = null): ?string
@@ -84,8 +99,9 @@ function send_order_status_email(int $orderId, ?int $userId, string $status, ?st
             return null;
         }
 
-        $statusText = htmlspecialchars($status, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $subject = sprintf('Rendelés állapotváltozás #%d – %s', $orderId, $status);
+        $statusLabel = order_status_label($status);
+        $statusText = htmlspecialchars($statusLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $subject = sprintf('Rendelés állapotváltozás #%d – %s', $orderId, $statusLabel);
         $trackingPart = '';
         if ($trackingNumber) {
             $trackingPart = '<p>Csomagszám: <strong>' . htmlspecialchars($trackingNumber, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</strong></p>';
@@ -111,13 +127,44 @@ function send_order_status_email(int $orderId, ?int $userId, string $status, ?st
     return null;
 }
 
+function send_order_confirmation_email(int $orderId, int $userId, int $total, string $paymentMethod, string $status): ?string
+{
+    try {
+        $prefStmt = db()->prepare('SELECT u.name, u.email, p.order_emails FROM users u LEFT JOIN user_notification_preferences p ON p.user_id = u.id WHERE u.id = ? LIMIT 1');
+        $prefStmt->execute([$userId]);
+        $row = $prefStmt->fetch();
+        if (!$row || !filter_var((string) ($row['email'] ?? ''), FILTER_VALIDATE_EMAIL)) {
+            return null;
+        }
+        if (isset($row['order_emails']) && (int) $row['order_emails'] === 0) {
+            return null;
+        }
+
+        $statusLabel = order_status_label($status);
+        $subject = sprintf('Rendelés visszaigazolás #%d', $orderId);
+        $html = sprintf(
+            '<p>Kedves %s!</p><p>Köszönjük rendelését. Azonosító: <strong>#%d</strong>.</p><p>Aktuális állapot: <strong>%s</strong>.</p><p>Fizetés módja: <strong>%s</strong>.</p><p>Végösszeg: <strong>%s Ft</strong>.</p>',
+            htmlspecialchars((string) ($row['name'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            $orderId,
+            htmlspecialchars($statusLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            htmlspecialchars($paymentMethod, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            number_format($total, 0, ',', ' ')
+        );
+        send_app_mail((string) $row['email'], (string) ($row['name'] ?? ''), $subject, $html);
+    } catch (Throwable $e) {
+        return 'A visszaigazoló e-mail küldése sikertelen, de a rendelés rögzítve lett.';
+    }
+    return null;
+}
+
 function normalize_tracking_url(string $value): ?string
 {
     $url = clean_string($value, 1000);
     if ($url === '') {
         return null;
     }
-    if (!filter_var($url, FILTER_VALIDATE_URL)) {
+    $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+    if (!filter_var($url, FILTER_VALIDATE_URL) || !in_array($scheme, ['http', 'https'], true)) {
         send_json(['ok' => false, 'error' => 'Érvénytelen tracking URL.'], 422);
     }
     return $url;
@@ -128,7 +175,7 @@ $payload = get_json_input();
 
 if ($method === 'GET') {
     $user = require_login();
-    $isAdmin = user_has_role($user, ['admin', 'superadmin', 'webshop_manager', 'accountant']);
+    $isAdmin = user_has_role($user, ['admin', 'superadmin']);
     $orderIdFilter = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 
     if ($isAdmin) {
@@ -384,10 +431,12 @@ if ($method === 'POST') {
                 insert_stock_movement($pdo, (int) $row['product_id'], $orderId, 'reserve', (int) $row['qty'], 'Checkout reserve');
             }
 
-            insert_order_status_log($pdo, $orderId, 'new', $initialStatus, (int) $user['id'], 'Checkout create');
+            if ($initialStatus !== 'new') {
+                insert_order_status_log($pdo, $orderId, 'new', $initialStatus, (int) $user['id'], 'Checkout create');
+            }
             $pdo->commit();
 
-            $mailWarning = send_order_status_email($orderId, (int) $user['id'], $initialStatus, null, null);
+            $mailWarning = send_order_confirmation_email($orderId, (int) $user['id'], $total, (string) $paymentMeta['method'], $initialStatus);
             send_json([
                 'ok' => true,
                 'order_id' => $orderId,
@@ -409,7 +458,7 @@ if ($method === 'POST') {
 
     if ($action === 'update_status') {
         $adminUser = require_login();
-        if (!user_has_role($adminUser, ['admin', 'superadmin', 'webshop_manager', 'accountant'])) {
+        if (!user_has_role($adminUser, ['admin', 'superadmin'])) {
             send_json(['ok' => false, 'error' => 'Nincs jogosultsága ehhez a művelethez.'], 403);
         }
         enforce_rate_limit('order_status_update', 60, 900);
@@ -417,8 +466,10 @@ if ($method === 'POST') {
         $id = (int) ($payload['id'] ?? 0);
         $status = normalize_order_status_value(clean_string((string) ($payload['status'] ?? ''), 60));
         $note = clean_string((string) ($payload['note'] ?? ''), 500);
-        $trackingNumber = clean_string((string) ($payload['tracking_number'] ?? ''), 120);
-        $trackingUrl = normalize_tracking_url((string) ($payload['tracking_url'] ?? ''));
+        $trackingNumberProvided = array_key_exists('tracking_number', $payload);
+        $trackingUrlProvided = array_key_exists('tracking_url', $payload);
+        $trackingNumber = $trackingNumberProvided ? clean_string((string) ($payload['tracking_number'] ?? ''), 120) : null;
+        $trackingUrl = $trackingUrlProvided ? normalize_tracking_url((string) ($payload['tracking_url'] ?? '')) : null;
 
         if ($id <= 0 || !in_array($status, order_statuses(), true)) {
             send_json(['ok' => false, 'error' => 'Hiányzó rendelés adatok.'], 422);
@@ -427,7 +478,7 @@ if ($method === 'POST') {
         $pdo = db();
         $pdo->beginTransaction();
         try {
-            $currentStmt = $pdo->prepare('SELECT id, user_id, status, stock_reverted FROM orders WHERE id = ? LIMIT 1 FOR UPDATE');
+            $currentStmt = $pdo->prepare('SELECT id, user_id, status, stock_reverted, tracking_number, tracking_url FROM orders WHERE id = ? LIMIT 1 FOR UPDATE');
             $currentStmt->execute([$id]);
             $current = $currentStmt->fetch();
             if (!$current) {
@@ -442,8 +493,9 @@ if ($method === 'POST') {
             $stockReverted = (int) ($current['stock_reverted'] ?? 0) === 1;
             $targetIsFinal = in_array($status, final_order_statuses(), true);
             $sourceIsFinal = in_array($fromStatus, final_order_statuses(), true);
+            $targetIsReversal = in_array($status, reversal_order_statuses(), true);
 
-            if ($targetIsFinal && !$stockReverted) {
+            if ($targetIsReversal && !$stockReverted) {
                 $itemsStmt = $pdo->prepare('SELECT product_id, qty FROM order_items WHERE order_id = ? AND product_id IS NOT NULL');
                 $itemsStmt->execute([$id]);
                 $restockStmt = $pdo->prepare('UPDATE products SET stock = stock + ? WHERE id = ?');
@@ -472,6 +524,15 @@ if ($method === 'POST') {
                 $stockReverted = false;
             }
 
+            $nextTrackingNumber = $current['tracking_number'] ?? null;
+            if ($trackingNumberProvided) {
+                $nextTrackingNumber = ($trackingNumber ?? '') !== '' ? $trackingNumber : null;
+            }
+            $nextTrackingUrl = $current['tracking_url'] ?? null;
+            if ($trackingUrlProvided) {
+                $nextTrackingUrl = $trackingUrl;
+            }
+
             $paymentStatus = null;
             if ($status === 'refunded') {
                 $paymentStatus = 'refunded';
@@ -491,8 +552,8 @@ if ($method === 'POST') {
             $updateStmt->execute([
                 $status,
                 $paymentStatus,
-                $trackingNumber !== '' ? $trackingNumber : null,
-                $trackingUrl,
+                $nextTrackingNumber,
+                $nextTrackingUrl,
                 $stockReverted ? 1 : 0,
                 $id,
             ]);
@@ -503,11 +564,11 @@ if ($method === 'POST') {
             log_admin_activity((int) $adminUser['id'], 'order_status_update', 'order', $id, [
                 'from' => $fromStatus,
                 'to' => $status,
-                'tracking_number' => $trackingNumber,
-                'tracking_url' => $trackingUrl,
+                'tracking_number' => $nextTrackingNumber,
+                'tracking_url' => $nextTrackingUrl,
             ]);
 
-            $mailWarning = send_order_status_email($id, (int) $current['user_id'], $status, $trackingNumber ?: null, $trackingUrl);
+            $mailWarning = send_order_status_email($id, (int) $current['user_id'], $status, $nextTrackingNumber ?: null, $nextTrackingUrl ?: null);
             send_json(['ok' => true, 'warning' => $mailWarning]);
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {

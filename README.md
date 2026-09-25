@@ -100,7 +100,7 @@ A `20260925_advanced_order_management.sql` migráció hozzáadja:
 - `order_status_logs` státusztörténetet
 - `stock_movements` készletmozgás naplót
 - tracking mezőket (`tracking_number`, `tracking_url`) és idempotens készlet-visszaállítás jelzőt (`orders.stock_reverted`)
-- bővített admin szerepkör enumot (`superadmin`, `webshop_manager`, `quote_manager`, `support_agent`, `accountant`, `content_manager`)
+- bővített admin szerepkör enumot (`superadmin`)
 
 ## 4) Helyi futtatás
 

@@ -1375,7 +1375,7 @@
         }
 
         function isAdminUser() {
-            return Boolean(state.currentUser && ['admin', 'superadmin', 'webshop_manager', 'quote_manager', 'support_agent', 'accountant', 'content_manager'].includes(state.currentUser.role));
+            return Boolean(state.currentUser && ['admin', 'superadmin'].includes(state.currentUser.role));
         }
 
         function canUseCommerceFeatures() {
@@ -2411,11 +2411,19 @@
             if (!requireAuthentication()) {
                 return;
             }
-            openCheckoutModal();
+            await openCheckoutModal();
         }
 
-        function openCheckoutModal() {
+        async function openCheckoutModal() {
             if (!canUseCommerceFeatures()) return;
+            if (!state.account) {
+                try {
+                    await loadAccountSummary();
+                } catch (err) {
+                    showToast(err?.message || 'A fiókadatok betöltése sikertelen, a checkout most nem nyitható meg.');
+                    return;
+                }
+            }
             const address = state.account?.addresses || {};
             document.getElementById('checkout-shipping-name').value = address.shipping_name || state.currentUser?.name || '';
             document.getElementById('checkout-shipping-phone').value = address.shipping_phone || state.currentUser?.phone || '';
@@ -2810,7 +2818,11 @@
                         <td class="p-4 text-xs text-slate-400">${esc(o.date)}</td>
                         <td class="p-4"><span class="bg-emerald-500/10 text-emerald-400 text-xs px-2 py-1 rounded">${esc(o.status)}</span></td>
                         <td class="p-4 text-right">
-                            <select onchange="updateOrderStatus(${o.id}, this.value)" class="bg-slate-700 text-xs rounded px-2 py-1 border border-slate-600">${statuses.map(s => `<option value="${s}" ${s === o.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
+                            <div class="flex flex-col gap-2 items-end">
+                                <input id="tracking-number-${o.id}" value="${esc(o.tracking_number || '')}" class="bg-slate-800 text-xs rounded px-2 py-1 border border-slate-700 w-48" placeholder="Csomagszám">
+                                <input id="tracking-url-${o.id}" value="${esc(o.tracking_url || '')}" class="bg-slate-800 text-xs rounded px-2 py-1 border border-slate-700 w-48" placeholder="Tracking URL">
+                                <select onchange="updateOrderStatus(${o.id}, this.value)" class="bg-slate-700 text-xs rounded px-2 py-1 border border-slate-600">${statuses.map(s => `<option value="${s}" ${s === o.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
+                            </div>
                         </td>
                     </tr>
                 `).join('');
@@ -2887,11 +2899,6 @@
                                 <option value="user" ${u.role === 'user' ? 'selected' : ''}>user</option>
                                 <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
                                 <option value="superadmin" ${u.role === 'superadmin' ? 'selected' : ''}>superadmin</option>
-                                <option value="webshop_manager" ${u.role === 'webshop_manager' ? 'selected' : ''}>webshop_manager</option>
-                                <option value="quote_manager" ${u.role === 'quote_manager' ? 'selected' : ''}>quote_manager</option>
-                                <option value="support_agent" ${u.role === 'support_agent' ? 'selected' : ''}>support_agent</option>
-                                <option value="accountant" ${u.role === 'accountant' ? 'selected' : ''}>accountant</option>
-                                <option value="content_manager" ${u.role === 'content_manager' ? 'selected' : ''}>content_manager</option>
                             </select>
                         </td>
                         <td class="p-4 text-xs text-slate-400">${esc(String(u.created_at).slice(0, 10))}</td>
@@ -3108,15 +3115,14 @@
 
         async function updateOrderStatus(id, status) {
             try {
-                let tracking_number = '';
-                let tracking_url = '';
-                if (status === 'shipped') {
-                    tracking_number = prompt('Csomagszám (opcionális):') || '';
-                    tracking_url = prompt('Tracking URL (opcionális):') || '';
-                }
+                const payload = { action: 'update_status', id, status };
+                const trackingNumberInput = document.getElementById(`tracking-number-${id}`);
+                const trackingUrlInput = document.getElementById(`tracking-url-${id}`);
+                if (trackingNumberInput) payload.tracking_number = trackingNumberInput.value.trim();
+                if (trackingUrlInput) payload.tracking_url = trackingUrlInput.value.trim();
                 await apiFetch(API.orders, {
                     method: 'POST',
-                    body: JSON.stringify({ action: 'update_status', id, status, tracking_number, tracking_url })
+                    body: JSON.stringify(payload)
                 });
                 await loadOrders();
                 renderAdminTab('orders');
