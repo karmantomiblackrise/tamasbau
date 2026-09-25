@@ -1269,6 +1269,7 @@
             calcData: { area: 70, wiringType: 'full', alarmQty: 1, cameraQty: 2, intercom: false, total: 0 }
         };
         let pendingProtectedAction = null;
+        let authRequiredTriggerElement = null;
 
         function esc(text) {
             return String(text ?? '')
@@ -1288,12 +1289,19 @@
             localStorage.removeItem('tb_cart');
         }
 
-        function closeAuthRequiredModal() {
+        function closeAuthRequiredModal(resetPendingAction = true) {
             document.getElementById('auth-required-modal').classList.add('hidden');
+            if (resetPendingAction) {
+                pendingProtectedAction = null;
+            }
+            if (authRequiredTriggerElement && typeof authRequiredTriggerElement.focus === 'function') {
+                authRequiredTriggerElement.focus();
+            }
+            authRequiredTriggerElement = null;
         }
 
         function openAuthFromPrompt(tab) {
-            closeAuthRequiredModal();
+            closeAuthRequiredModal(false);
             openAuthModal(tab);
         }
 
@@ -1306,14 +1314,25 @@
 
         function requireAuthentication(action) {
             if (canUseCommerceFeatures()) return true;
-            pendingProtectedAction = typeof action === 'function' ? action : null;
+            if (typeof action === 'function' && pendingProtectedAction === null) {
+                pendingProtectedAction = action;
+            }
             const modal = document.getElementById('auth-required-modal');
             const wasHidden = modal.classList.contains('hidden');
+            if (wasHidden) {
+                authRequiredTriggerElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            }
             modal.classList.remove('hidden');
             if (wasHidden) {
                 showToast('Az árak és a kosár használatához jelentkezzen be vagy regisztráljon.');
             }
             return false;
+        }
+
+        function handleAuthRequiredModalKeydown(event) {
+            if (event.key === 'Escape') {
+                closeAuthRequiredModal();
+            }
         }
 
         function formatDateTime(value) {
@@ -2065,6 +2084,7 @@
         function renderShopProducts() {
             const container = document.getElementById('shop-products-grid');
             if (!container) return;
+            const commerceEnabled = canUseCommerceFeatures();
 
             const search = (document.getElementById('shop-search').value || '').toLowerCase();
             const filtered = state.products.filter(p => {
@@ -2092,9 +2112,9 @@
                                 ? `<span class="text-lg font-black text-white">${Number(p.price).toLocaleString('hu-HU')} Ft</span>`
                                 : `<button onclick="requireAuthentication()" class="text-left text-sm font-semibold text-amber-400 hover:text-amber-300 flex items-center"><i class="fa-solid fa-lock mr-2"></i>Az ár megtekintéséhez jelentkezzen be</button>`}
                         </div>
-                        <button onclick="addToCart(${p.id})" aria-label="${esc(`${p.name} kosárba helyezése`)}" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-2.5 rounded-xl transition-colors">
-                            <i class="fa-solid fa-cart-plus"></i>
-                        </button>
+                        ${commerceEnabled
+                            ? `<button onclick="addToCart(${p.id})" aria-label="${esc(`${p.name} kosárba helyezése`)}" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-2.5 rounded-xl transition-colors"><i class="fa-solid fa-cart-plus"></i></button>`
+                            : `<button onclick="requireAuthentication()" aria-label="Bejelentkezés szükséges a kosár használatához" class="bg-slate-700 text-slate-300 font-bold p-2.5 rounded-xl border border-slate-600"><i class="fa-solid fa-lock"></i></button>`}
                     </div>
                 </div>
             `).join('') || `<p class="text-slate-400 text-sm col-span-full">Nincs találat a megadott szűrőkkel.</p>`;
@@ -2190,6 +2210,10 @@
                 requireAuthentication();
                 return;
             }
+            if (!state.cart[index]) {
+                renderCartItems();
+                return;
+            }
             state.cart[index].qty += delta;
             if (state.cart[index].qty <= 0) state.cart.splice(index, 1);
             saveState();
@@ -2259,7 +2283,7 @@
                     body: JSON.stringify({ email, password })
                 });
                 await refreshData();
-                closeAuthRequiredModal();
+                closeAuthRequiredModal(false);
                 closeAuthModal();
                 showToast('Sikeres bejelentkezés!');
                 runPendingProtectedAction();
@@ -2280,7 +2304,7 @@
                     body: JSON.stringify({ name, email, password })
                 });
                 await refreshData();
-                closeAuthRequiredModal();
+                closeAuthRequiredModal(false);
                 closeAuthModal();
                 showToast('Fiók sikeresen létrehozva!');
                 runPendingProtectedAction();
@@ -2298,7 +2322,7 @@
                     body: JSON.stringify({ email: 'admin@tamasbau.hu', password })
                 });
                 await refreshData();
-                closeAuthRequiredModal();
+                closeAuthRequiredModal(false);
                 closeAuthModal();
                 showToast('Bejelentkezve Adminisztrátorként!');
                 runPendingProtectedAction();
@@ -3314,6 +3338,7 @@
         }
 
         window.onload = async function() {
+            document.addEventListener('keydown', handleAuthRequiredModalKeydown);
             try {
                 await refreshData();
             } catch (err) {
