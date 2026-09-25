@@ -63,3 +63,19 @@ CREATE TABLE IF NOT EXISTS admin_activity_logs (
   INDEX idx_admin_activity_logs_created (created_at),
   INDEX idx_admin_activity_logs_event (event_type, created_at)
 ) ENGINE=InnoDB;
+
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS shipping_name VARCHAR(120) NULL AFTER total,
+  ADD COLUMN IF NOT EXISTS shipping_phone VARCHAR(40) NULL AFTER shipping_name,
+  ADD COLUMN IF NOT EXISTS shipping_postal_code VARCHAR(20) NULL AFTER shipping_phone,
+  ADD COLUMN IF NOT EXISTS shipping_city VARCHAR(120) NULL AFTER shipping_postal_code,
+  ADD COLUMN IF NOT EXISTS shipping_address VARCHAR(255) NULL AFTER shipping_city,
+  ADD COLUMN IF NOT EXISTS billing_name VARCHAR(120) NULL AFTER shipping_address,
+  ADD COLUMN IF NOT EXISTS billing_tax_number VARCHAR(60) NULL AFTER billing_name,
+  ADD COLUMN IF NOT EXISTS billing_postal_code VARCHAR(20) NULL AFTER billing_tax_number,
+  ADD COLUMN IF NOT EXISTS billing_city VARCHAR(120) NULL AFTER billing_postal_code,
+  ADD COLUMN IF NOT EXISTS billing_address VARCHAR(255) NULL AFTER billing_city,
+  ADD COLUMN IF NOT EXISTS shipping_method VARCHAR(40) NULL AFTER billing_address,
+  ADD COLUMN IF NOT EXISTS payment_method VARCHAR(40) NULL AFTER shipping_method,
+  ADD COLUMN IF NOT EXISTS payment_provider VARCHAR(40) NULL AFTER payment_method,
+  ADD COLUMN IF NOT EXISTS payment_status VARCHAR(40) NULL AFTER payment_provider;

@@ -104,18 +104,24 @@ if ($method === 'POST') {
     $rows = $stmt->fetchAll();
     $columns = $rows ? array_keys($rows[0]) : [];
 
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $exports[$type]['filename'] . '"');
     $out = fopen('php://output', 'wb');
     if ($out === false) {
         send_json(['ok' => false, 'error' => 'CSV export hiba.'], 500);
     }
+
+    header_remove('Content-Type');
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $exports[$type]['filename'] . '"');
     if ($columns) {
         fputcsv($out, $columns);
         foreach ($rows as $row) {
             $line = [];
             foreach ($columns as $column) {
-                $line[] = (string) ($row[$column] ?? '');
+                $value = (string) ($row[$column] ?? '');
+                if (preg_match('/^[=\+\-@]/', $value) === 1) {
+                    $value = "'" . $value;
+                }
+                $line[] = $value;
             }
             fputcsv($out, $line);
         }

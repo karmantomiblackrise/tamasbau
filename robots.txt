@@ -3,4 +3,4 @@ Allow: /
 Disallow: /api/
 Disallow: /uploads/
 
-Sitemap: /sitemap.xml
+Sitemap: https://tamasbau.hu/sitemap.xml

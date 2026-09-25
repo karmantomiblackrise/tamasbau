@@ -8,6 +8,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
 }
 
 require_admin();
+validate_csrf_token();
 enforce_rate_limit('product_upload', 20, 900);
 
 if (!isset($_FILES['image']) || !is_array($_FILES['image'])) {
@@ -51,6 +52,10 @@ $rootDir = dirname(__DIR__);
 $uploadDir = $rootDir . '/uploads/products';
 if (!is_dir($uploadDir) && !@mkdir($uploadDir, 0775, true)) {
     send_json(['ok' => false, 'error' => 'A feltöltési mappa nem hozható létre.'], 500);
+}
+$htaccessPath = $uploadDir . '/.htaccess';
+if (!is_file($htaccessPath)) {
+    @file_put_contents($htaccessPath, "Options -Indexes\n<FilesMatch \"\\.(php|phtml|phar|pl|cgi|sh)$\">\n  Require all denied\n</FilesMatch>\n");
 }
 
 $ext = $allowed[$mime];

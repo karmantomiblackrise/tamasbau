@@ -299,6 +299,7 @@ Minden új SQL művelet prepared statementet használ.
 - `service-worker.js` (admin/API válaszokat nem cache-eli)
 - `offline.html`
 - `robots.txt`, `sitemap.xml`
+- `sitemap.xml` és `robots.txt` jelenleg `https://tamasbau.hu` URL-t használ; ettől eltérő domain esetén élesítéskor frissítsd.
 - jogi oldalak magyar nyelvű szerkeszthető mintái:
   - `adatkezelesi-tajekoztato.html`
   - `cookie-tajekoztato.html`

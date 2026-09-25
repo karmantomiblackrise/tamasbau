@@ -52,6 +52,7 @@ if ($method !== 'POST') {
     send_json(['ok' => false, 'error' => 'Nem támogatott művelet.'], 405);
 }
 
+validate_csrf_token();
 enforce_rate_limit('account_write', 30, 900);
 $action = clean_string((string) ($payload['action'] ?? ''), 40);
 $userId = (int) $user['id'];
@@ -154,8 +155,11 @@ if ($action === 'change_email') {
         send_json(['ok' => false, 'error' => 'Ez az e-mail cím már foglalt.'], 409);
     }
 
+    $oldEmail = (string) $user['email'];
     $update = db()->prepare('UPDATE users SET email = ? WHERE id = ?');
     $update->execute([$newEmail, $userId]);
+    $supportUpdate = db()->prepare('UPDATE support_chats SET user_email = ? WHERE user_email = ?');
+    $supportUpdate->execute([$newEmail, $oldEmail]);
     send_json(['ok' => true]);
 }
 
@@ -164,8 +168,20 @@ if ($action === 'wishlist_add') {
     if ($productId <= 0) {
         send_json(['ok' => false, 'error' => 'Érvénytelen termék azonosító.'], 422);
     }
-    $stmt = db()->prepare('INSERT IGNORE INTO wishlists (user_id, product_id) VALUES (?, ?)');
-    $stmt->execute([$userId, $productId]);
+    $exists = db()->prepare('SELECT id FROM products WHERE id = ? LIMIT 1');
+    $exists->execute([$productId]);
+    if (!$exists->fetch()) {
+        send_json(['ok' => false, 'error' => 'A termék nem található.'], 404);
+    }
+    try {
+        $stmt = db()->prepare('INSERT INTO wishlists (user_id, product_id) VALUES (?, ?)');
+        $stmt->execute([$userId, $productId]);
+    } catch (PDOException $e) {
+        if ((int) $e->getCode() === 23000) {
+            send_json(['ok' => true, 'message' => 'A termék már szerepel a kívánságlistában.']);
+        }
+        throw $e;
+    }
     send_json(['ok' => true]);
 }
 

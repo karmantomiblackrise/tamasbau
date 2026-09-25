@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>/index.html</loc></url>
-  <url><loc>/adatkezelesi-tajekoztato.html</loc></url>
-  <url><loc>/cookie-tajekoztato.html</loc></url>
-  <url><loc>/aszf.html</loc></url>
-  <url><loc>/elallasi-tajekoztato.html</loc></url>
-  <url><loc>/impresszum.html</loc></url>
+  <url><loc>https://tamasbau.hu/index.html</loc></url>
+  <url><loc>https://tamasbau.hu/adatkezelesi-tajekoztato.html</loc></url>
+  <url><loc>https://tamasbau.hu/cookie-tajekoztato.html</loc></url>
+  <url><loc>https://tamasbau.hu/aszf.html</loc></url>
+  <url><loc>https://tamasbau.hu/elallasi-tajekoztato.html</loc></url>
+  <url><loc>https://tamasbau.hu/impresszum.html</loc></url>
 </urlset>
