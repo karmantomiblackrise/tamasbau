@@ -638,7 +638,8 @@ function list_work_orders_endpoint(array $user): void
     $where = [];
     $args = [];
     if ($meOnly || !is_operations_admin($user)) {
-        $where[] = 'wo.assigned_to_user_id = ?';
+        $where[] = '(wo.assigned_to_user_id = ? OR wo.user_id = ?)';
+        $args[] = (int) $user['id'];
         $args[] = (int) $user['id'];
     }
 
@@ -723,7 +724,21 @@ function post_work_orders_endpoint(array $payload): void
             send_json(['ok' => false, 'error' => 'Érvénytelen munkalap.'], 422);
         }
 
-        $closedAt = ($status === 'done' || $status === 'cancelled') ? date('Y-m-d H:i:s') : null;
+        $existingStmt = db()->prepare('SELECT status, closed_at FROM work_orders WHERE id = ? LIMIT 1');
+        $existingStmt->execute([$id]);
+        $existing = $existingStmt->fetch();
+        if (!$existing) {
+            send_json(['ok' => false, 'error' => 'Munkalap nem található.'], 404);
+        }
+        $wasClosed = in_array((string) ($existing['status'] ?? ''), ['done', 'cancelled'], true);
+        $willBeClosed = in_array($status, ['done', 'cancelled'], true);
+        if ($willBeClosed) {
+            $closedAt = $existing['closed_at'] ?: date('Y-m-d H:i:s');
+        } elseif ($wasClosed) {
+            $closedAt = null;
+        } else {
+            $closedAt = $existing['closed_at'];
+        }
         $stmt = db()->prepare('UPDATE work_orders SET project_id = ?, user_id = ?, title = ?, location = ?, work_type = ?, description = ?, assigned_to_user_id = ?, status = ?, priority = ?, planned_minutes = ?, actual_minutes = ?, due_at = ?, handover_ready = ?, client_signature_name = ?, closed_at = ? WHERE id = ?');
         $stmt->execute([$projectId, $userId, $title, $location !== '' ? $location : null, $workType !== '' ? $workType : null, $description !== '' ? $description : null, $assignedTo, $status, $priority, $plannedMinutes, $actualMinutes, $dueAt, $handoverReady, $clientSignature !== '' ? $clientSignature : null, $closedAt, $id]);
         log_admin_activity((int) $user['id'], 'work_order_updated', 'work_order', $id, ['status' => $status, 'priority' => $priority]);
@@ -745,8 +760,10 @@ function post_work_orders_endpoint(array $payload): void
             require_enum_value($status, task_statuses(), 'munkalap státusz');
             $changes[] = 'status = ?';
             $args[] = $status;
-            if ($status === 'done' || $status === 'cancelled') {
+            if (in_array($status, ['done', 'cancelled'], true)) {
                 $changes[] = 'closed_at = NOW()';
+            } else {
+                $changes[] = 'closed_at = NULL';
             }
         }
         if (array_key_exists('assigned_to_user_id', $payload)) {
@@ -1210,6 +1227,9 @@ function post_service_endpoint(array $user, array $payload): void
             if ($window === false || $window < time()) {
                 send_json(['ok' => false, 'error' => 'A ticket újranyitási ablaka lejárt.'], 422);
             }
+        }
+        if (!in_array((string) ($ticket['status'] ?? ''), ['resolved', 'closed', 'rejected'], true)) {
+            send_json(['ok' => false, 'error' => 'Csak lezárt ticket nyitható újra.'], 422);
         }
 
         $update = db()->prepare('UPDATE service_tickets SET status = ?, closed_at = NULL WHERE id = ?');
