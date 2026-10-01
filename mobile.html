@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#f59e0b">
+  <title>Mobil munkalapok | Tamás Bau</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/pwa-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Ugrás a tartalomra</a>
+  <header class="tb-header">
+    <a class="tb-brand" href="#/">Munkalapok</a>
+    <span id="net" class="net-indicator" role="status" aria-live="polite">Online</span>
+    <span class="spacer"></span>
+    <a class="tb-btn" href="#/queue" id="queue-btn" aria-label="Szinkronizálási sor">⇅ <span id="queue-count">0</span></a>
+    <button type="button" class="tb-btn" id="sync-btn">Szinkronizálás</button>
+  </header>
+  <div id="banner" class="card hidden" role="alert"></div>
+  <main id="main" tabindex="-1">
+    <p class="tb-state">⏳ Betöltés…</p>
+  </main>
+  <script src="/assets/js/common.js"></script>
+  <script src="/assets/js/mobile.js"></script>
+</body>
+</html>

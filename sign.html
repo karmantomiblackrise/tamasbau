@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#f59e0b">
+  <title>Digitális aláírás | Tamás Bau</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Ugrás a tartalomra</a>
+  <header class="tb-header">
+    <a class="tb-brand" href="/">Tamás Bau</a>
+    <span class="muted">Digitális aláírás</span>
+    <span class="spacer"></span>
+    <a class="tb-btn" id="back-link" href="/">Vissza</a>
+  </header>
+  <main id="main">
+    <div id="sign-root" aria-live="polite"><p class="tb-state">⏳ Dokumentum betöltése…</p></div>
+
+    <form id="sign-form" class="card hidden" novalidate>
+      <h1 id="doc-title">Dokumentum</h1>
+      <p class="muted small">Verzió: <span id="doc-version" class="mono"></span><br>Ellenőrző összeg (SHA-256): <span id="doc-hash" class="mono"></span></p>
+      <h2>Aláírandó tartalom</h2>
+      <div id="doc-preview" class="doc-preview" tabindex="0" aria-label="Aláírandó dokumentum tartalma"></div>
+
+      <div id="existing-signatures" class="small muted"></div>
+
+      <fieldset>
+        <legend>Aláíró adatai</legend>
+        <label for="signer-name">Név *</label>
+        <input id="signer-name" autocomplete="name" required maxlength="120">
+        <label for="signer-email">E-mail cím * (ide küldjük a másolatot)</label>
+        <input id="signer-email" type="email" autocomplete="email" required maxlength="190">
+        <label for="signer-role">Aláíró szerepe</label>
+        <select id="signer-role">
+          <option value="customer">Megrendelő / ügyfél</option>
+          <option value="customer_representative">Ügyfél meghatalmazottja</option>
+          <option value="contractor">Kivitelező képviselője</option>
+        </select>
+      </fieldset>
+
+      <fieldset>
+        <legend>Nyilatkozat</legend>
+        <label for="declaration">Nyilatkozat szövege</label>
+        <textarea id="declaration" maxlength="4000" required></textarea>
+        <label class="check"><input type="checkbox" id="declaration-accepted"> <span>Elolvastam és elfogadom a fenti dokumentumot és nyilatkozatot. *</span></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Aláírás *</legend>
+        <p class="small muted" id="sig-help">Rajzolja meg aláírását ujjal, tollal vagy egérrel a fehér mezőben. Billentyűzettel a „Gépelt aláírás” lehetőséget használhatja.</p>
+        <div class="sig-pad-wrap">
+          <canvas id="sig-pad" class="sig-pad" aria-describedby="sig-help" role="img" aria-label="Aláírás rajzoló felület"></canvas>
+          <span class="sig-hint" id="sig-hint">Írja alá itt</span>
+        </div>
+        <div class="row mt">
+          <button type="button" class="tb-btn" id="sig-clear">Törlés</button>
+          <button type="button" class="tb-btn" id="sig-type">Gépelt aláírás a névből</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Adatvédelem</legend>
+        <label class="check"><input type="radio" name="ip-mode" value="hash" checked> <span>Az IP-cím csak egyirányú, sózott hash formában kerül rögzítésre (ajánlott, bizonyító erő).</span></label>
+        <label class="check"><input type="radio" name="ip-mode" value="omitted"> <span>Ne rögzítsen IP-hez kötött adatot.</span></label>
+        <p class="small muted">Rögzítjük: név, e-mail, nyilatkozat, aláíráskép, dokumentum-pillanatkép és ellenőrző összeg, időbélyeg. Részletek: <a href="/adatkezelesi-tajekoztato.html">adatkezelési tájékoztató</a>.</p>
+      </fieldset>
+
+      <p id="sign-error" class="tb-state tb-state-error hidden" role="alert"></p>
+      <button type="submit" class="tb-btn tb-btn-primary tb-btn-lg" id="sign-submit">Aláírás véglegesítése</button>
+    </form>
+
+    <section id="sign-done" class="card hidden" tabindex="-1">
+      <h1>✅ Aláírás rögzítve</h1>
+      <p id="done-text"></p>
+      <div class="row">
+        <a class="tb-btn tb-btn-primary" id="print-link" target="_blank" rel="noopener">Aláírt dokumentum megnyitása / nyomtatás (PDF mentés)</a>
+        <a class="tb-btn" id="done-back" href="/">Vissza</a>
+      </div>
+    </section>
+  </main>
+  <script src="/assets/js/common.js"></script>
+  <script src="/assets/js/signature.js"></script>
+  <script src="/assets/js/sign.js"></script>
+</body>
+</html>

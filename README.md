@@ -444,3 +444,62 @@ Minden mutáló művelet auth + CSRF védelemmel fut, prepared statementtel és 
 - Javasolt jogosultságok cPanelen:
   - mappák: `0755` vagy `0775` (host policy szerint)
   - feltöltési könyvtárak írhatóak a PHP processz számára
+
+## Üzemeltetési és platform bővítések (2026. október)
+
+### Új oldalak
+| Oldal | Leírás |
+|---|---|
+| `/mobile.html` | Munkatársi mobil PWA: munkalapok, gyors státuszváltás, checklist, megjegyzés, stopperes munkaidő, anyagfelhasználás. Offline sor (idempotency kulcs), automatikus újraküldés, ütközésfeloldás (`keep_server` / `apply_mine`). |
+| `/sign.html?type=quote\|work_order\|project&id=` | Digitális aláírás (érintés + egér), nyilatkozat, dokumentum hash + verzió + időbélyeg, sózott IP-hash vagy IP nélkül, nyomtatható / PDF-be menthető dokumentum, SMTP ügyfélmásolat. |
+| `/admin-center.html` | Profit dashboard + CSV, workflow központ (job sor, retry, kézi futtatás), SLA riport, értékelés moderáció, aláírások visszavonása, mobil ütközések, számlázó adapter, 2FA / munkamenetek / belépési előzmények, diagnosztika. Globális kereső (`/`) és parancspaletta (`Ctrl+K`). |
+| `/review.html?token=` | Tokenes ügyfélértékelés (1–5 csillag, publikus hozzájárulás). |
+
+### Telepítés / frissítés (cPanel)
+1. **Mentés előbb:** cPanel → Backup (teljes vagy „Download a MySQL Database Backup”), vagy phpMyAdmin → Export → SQL. Fájlok: File Manager → `public_html` tömörítés + letöltés.
+2. Fájlok feltöltése (a `.env`, `uploads/`, `logs/` tartalmát ne írd felül).
+3. Meglévő adatbázisnál phpMyAdminban **sorrendben** futtasd a még le nem futott migrációkat a `database/migrations/` mappából; az utolsó kettő: `20260925_platform_expansion_suite.sql`, `20261001_ops_security_automation_suite.sql`. A migrációk idempotensek (többször futtathatók).
+   Friss telepítésnél elég a `database/schema.sql` (a `CREATE DATABASE/USE` sorok ki vannak kommentezve – előbb válaszd ki a cPaneles adatbázist).
+4. `.env` kiegészítése a `.env.example` új kulcsaival (legalább `TB_APP_KEY`, 32+ karakter).
+5. Ellenőrzés: Admin központ → Diagnosztika (DB, séma, SMTP, írási jogok, PHP), vagy `https://domain.hu/api/health.php`.
+
+### Admin 2FA
+- Alapból opcionális (`TB_ADMIN_2FA_POLICY=optional`). Admin központ → Biztonság → „2FA beállítása”: a kulcsot hitelesítő alkalmazásba kell felvenni (link vagy kézi kulcs), majd a 6 jegyű kóddal megerősíteni. A 10 db helyreállító kód egyszer használatos, hash-elve tárolódik – mentsd el!
+- Kötelezővé tétel: minden adminnál állítsd be a 2FA-t, majd `TB_ADMIN_2FA_POLICY=required`. Ezután beállítás nélkül az admin csak a Biztonság oldalt éri el.
+- Elveszett telefon: helyreállító kóddal lépj be; végső esetben phpMyAdminban `DELETE FROM user_totp_settings WHERE user_id = X;`.
+
+### Ütemezett feladatok (cron nélkül is működik)
+A workflow jobok admin oldali betöltéskor is feldolgozódnak, és kézzel is futtathatók (Workflow → „Függő jobok futtatása most”). Ha van cPanel Cron Jobs:
+```
+*/10 * * * * /usr/local/bin/php /home/FELHASZNALO/public_html/api/cron.php --sla >/dev/null 2>&1
+0 6 * * *    /usr/local/bin/php /home/FELHASZNALO/public_html/api/cron.php --health >/dev/null 2>&1
+```
+
+### Számlázás
+`TB_INVOICE_PROVIDER=none` vagy `TB_INVOICE_MODE=sandbox` esetén **nem készül éles számla** (no-op / sandbox tervezet). API hiba esetén a tervezet „Kézi kiállítás szükséges” állapotba kerül; kiállítás után a sorszámot az Admin központ → Számlázás oldalon rögzítsd.
+
+### Visszaállítás (restore)
+1. Karbantartás alatt phpMyAdmin → adatbázis → Import → a mentett `.sql`.
+2. Fájlok: File Manager → mentett archívum feltöltése → Extract.
+3. Diagnosztika futtatása, majd smoke teszt.
+
+### Release előtti smoke teszt
+- [ ] Vendég: főoldal betölt, árak rejtve; regisztráció, belépés, kijelentkezés.
+- [ ] Kosár + checkout belépett felhasználóval.
+- [ ] Ajánlatkérés és support chat (vendég + admin válasz).
+- [ ] Admin belépés (2FA-val is), Admin központ minden fül betölt.
+- [ ] SMTP diagnosztika: próba e-mail megérkezik.
+- [ ] Mobil: munkalap státuszváltás offline, majd online szinkron; ütközés feloldása.
+- [ ] Aláírás munkalapon, nyomtatható dokumentum + e-mail másolat.
+- [ ] Értékeléskérés link, 3 alatti értékelés → follow-up riasztás.
+
+### Automatizált tesztek
+```
+php tests/run.php                       # unit tesztek
+TB_TEST_DB_NAME=tamasbau_test TB_TEST_DB_PASS=... php tests/run.php --integration
+```
+Az integrációs teszt csak „test” nevű adatbázison fut (friss `schema.sql` importtal), és ne legyen `.env` a gyökérben.
+
+### Hibakeresés
+- „Szerverhiba történt. Hibaazonosító: …” → keresd az azonosítót a `logs/app-error.log` fájlban (titkok nélkül naplózunk).
+- Composer `Unable to load dynamic library 'gd.so'` figyelmeztetés: a CLI PHP gd kiterjesztése hibás a tárhelyen, **ártalmatlan** – a webshop nem igényli; a telepítés ettől sikeres.
