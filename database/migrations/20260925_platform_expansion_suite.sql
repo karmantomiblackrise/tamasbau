@@ -261,27 +261,41 @@ CREATE TABLE IF NOT EXISTS user_region_access (
   CONSTRAINT fk_user_region_access_region FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-ALTER TABLE projects
-  ADD COLUMN site_id INT UNSIGNED NULL AFTER assigned_to_user_id,
-  ADD COLUMN team_id INT UNSIGNED NULL AFTER site_id,
-  ADD COLUMN region_id INT UNSIGNED NULL AFTER team_id,
-  ADD CONSTRAINT fk_projects_site FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE SET NULL,
-  ADD CONSTRAINT fk_projects_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
-  ADD CONSTRAINT fk_projects_region FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE SET NULL;
+-- Idempotens oszlop/kulcs bővítések (többszöri futtatás biztonságos).
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE projects ADD COLUMN site_id INT UNSIGNED NULL AFTER assigned_to_user_id', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projects' AND COLUMN_NAME = 'site_id');
+PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE projects ADD COLUMN team_id INT UNSIGNED NULL AFTER site_id', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projects' AND COLUMN_NAME = 'team_id');
+PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE projects ADD COLUMN region_id INT UNSIGNED NULL AFTER team_id', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projects' AND COLUMN_NAME = 'region_id');
+PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE projects ADD CONSTRAINT fk_projects_site FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE SET NULL', 'SELECT 1') FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projects' AND CONSTRAINT_NAME = 'fk_projects_site');
+PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE projects ADD CONSTRAINT fk_projects_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL', 'SELECT 1') FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projects' AND CONSTRAINT_NAME = 'fk_projects_team');
+PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE projects ADD CONSTRAINT fk_projects_region FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE SET NULL', 'SELECT 1') FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'projects' AND CONSTRAINT_NAME = 'fk_projects_region');
+PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
 
-ALTER TABLE work_orders
-  ADD COLUMN site_id INT UNSIGNED NULL AFTER assigned_to_user_id,
-  ADD COLUMN team_id INT UNSIGNED NULL AFTER site_id,
-  ADD COLUMN region_id INT UNSIGNED NULL AFTER team_id,
-  ADD CONSTRAINT fk_work_orders_site FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE SET NULL,
-  ADD CONSTRAINT fk_work_orders_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
-  ADD CONSTRAINT fk_work_orders_region FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE SET NULL;
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE work_orders ADD COLUMN site_id INT UNSIGNED NULL AFTER assigned_to_user_id', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'work_orders' AND COLUMN_NAME = 'site_id');
+PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE work_orders ADD COLUMN team_id INT UNSIGNED NULL AFTER site_id', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'work_orders' AND COLUMN_NAME = 'team_id');
+PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE work_orders ADD COLUMN region_id INT UNSIGNED NULL AFTER team_id', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'work_orders' AND COLUMN_NAME = 'region_id');
+PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE work_orders ADD CONSTRAINT fk_work_orders_site FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE SET NULL', 'SELECT 1') FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'work_orders' AND CONSTRAINT_NAME = 'fk_work_orders_site');
+PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE work_orders ADD CONSTRAINT fk_work_orders_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL', 'SELECT 1') FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'work_orders' AND CONSTRAINT_NAME = 'fk_work_orders_team');
+PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE work_orders ADD CONSTRAINT fk_work_orders_region FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE SET NULL', 'SELECT 1') FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'work_orders' AND CONSTRAINT_NAME = 'fk_work_orders_region');
+PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
 
-ALTER TABLE appointments
-  ADD COLUMN site_id INT UNSIGNED NULL AFTER work_order_id,
-  ADD COLUMN region_id INT UNSIGNED NULL AFTER site_id,
-  ADD CONSTRAINT fk_appointments_site FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE SET NULL,
-  ADD CONSTRAINT fk_appointments_region FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE SET NULL;
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE appointments ADD COLUMN site_id INT UNSIGNED NULL AFTER work_order_id', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'appointments' AND COLUMN_NAME = 'site_id');
+PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE appointments ADD COLUMN region_id INT UNSIGNED NULL AFTER site_id', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'appointments' AND COLUMN_NAME = 'region_id');
+PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE appointments ADD CONSTRAINT fk_appointments_site FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE SET NULL', 'SELECT 1') FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'appointments' AND CONSTRAINT_NAME = 'fk_appointments_site');
+PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE appointments ADD CONSTRAINT fk_appointments_region FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE SET NULL', 'SELECT 1') FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'appointments' AND CONSTRAINT_NAME = 'fk_appointments_region');
+PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
 
 INSERT INTO workflow_rules (rule_key, title, is_enabled, config_json)
 VALUES
@@ -291,7 +305,8 @@ VALUES
   ('project_closed_review_request', 'Projekt lezárás utáni értékeléskérés', 1, JSON_OBJECT('channel', 'email')),
   ('warranty_expiry_reminder', 'Garancia lejárat előtti emlékeztető', 1, JSON_OBJECT('days_before', 14)),
   ('urgent_ticket_alert', 'Sürgős ticket azonnali admin riasztás', 1, JSON_OBJECT('priority', 'emergency'))
-ON DUPLICATE KEY UPDATE title = VALUES(title), is_enabled = VALUES(is_enabled), config_json = VALUES(config_json);
+-- Meglévő szabálynál csak a címet frissítjük; az admin által beállított be/ki állapot és konfiguráció megmarad.
+ON DUPLICATE KEY UPDATE title = VALUES(title);
 
 INSERT INTO sites (name, region_code, is_default, status)
 SELECT 'Alapértelmezett telephely', 'DEFAULT', 1, 'active'

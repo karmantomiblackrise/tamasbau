@@ -1,0 +1,8 @@
+# A könyvtár csak include-olt PHP könyvtárakat tartalmaz, közvetlenül nem hívható.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

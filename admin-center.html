@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#f59e0b">
+  <title>Admin központ | Tamás Bau</title>
+  <link rel="icon" href="/pwa-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Ugrás a tartalomra</a>
+  <header class="tb-header">
+    <a class="tb-brand" href="/">Tamás Bau</a>
+    <span class="muted hide-mobile">Admin központ</span>
+    <form id="search-form" class="spacer" role="search">
+      <label for="global-search" class="sr-only">Globális keresés</label>
+      <input id="global-search" type="search" autocomplete="off" placeholder="Keresés: ügyfél, rendelés, projekt, ticket… ( / )" maxlength="120">
+    </form>
+    <button type="button" class="tb-btn" id="palette-btn" aria-keyshortcuts="Control+K Meta+K" title="Parancspaletta (Ctrl+K)">⌘ Parancsok <kbd class="hide-mobile">Ctrl K</kbd></button>
+    <span id="who" class="small muted hide-mobile"></span>
+  </header>
+  <nav class="tb-nav" aria-label="Admin központ szekciók">
+    <a href="#profit" data-section="profit">Profit</a>
+    <a href="#workflows" data-section="workflows">Workflow</a>
+    <a href="#sla" data-section="sla">SLA</a>
+    <a href="#reviews" data-section="reviews">Értékelések</a>
+    <a href="#signatures" data-section="signatures">Aláírások</a>
+    <a href="#conflicts" data-section="conflicts">Mobil ütközések</a>
+    <a href="#invoices" data-section="invoices">Számlázás</a>
+    <a href="#security" data-section="security">Biztonság / 2FA</a>
+    <a href="#health" data-section="health">Diagnosztika</a>
+    <a href="/mobile.html">Mobil nézet</a>
+  </nav>
+  <main id="main" tabindex="-1" aria-live="polite">
+    <p class="tb-state">⏳ Betöltés…</p>
+  </main>
+  <script src="/assets/js/common.js"></script>
+  <script src="/assets/js/admin-center.js"></script>
+</body>
+</html>

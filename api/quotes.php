@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/platform-lib.php';
 
 function sync_quote_to_lead(int $quoteId, string $name, string $email, string $phone, string $message): void
 {
@@ -113,6 +114,7 @@ if ($method === 'POST' && ($action === '' || $action === 'create')) {
     $stmt->execute([$name, $phone, $email, $workType, $message, 'new']);
     $quoteId = (int) db()->lastInsertId();
     sync_quote_to_lead($quoteId, $name, $email, $phone, $message);
+    tb_safe_event('quote_request_created', ['quote_id' => $quoteId]);
     send_json(['ok' => true, 'id' => $quoteId], 201);
 }
 

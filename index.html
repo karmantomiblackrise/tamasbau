@@ -573,7 +573,13 @@
                     <span class="bg-amber-500/10 text-amber-400 border border-amber-500/30 text-xs px-2.5 py-1 rounded font-mono">ADMINISZTRÁCIÓS PANEL</span>
                     <h1 class="text-3xl font-black text-white mt-1">Tamás Bau Vezérlőpult</h1>
                 </div>
-                <div class="flex items-center space-x-3">
+                <div class="flex flex-wrap items-center gap-3">
+                    <a href="/admin-center.html" class="bg-amber-500 hover:bg-amber-600 text-slate-950 px-4 py-2 rounded-xl text-sm font-bold" title="Workflow, profit, 2FA, SLA, értékelések, számlázás, diagnosztika (Ctrl+K: parancspaletta)">
+                        <i class="fa-solid fa-gauge-high mr-1.5"></i> Admin központ
+                    </a>
+                    <a href="/mobile.html" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-sm font-semibold border border-slate-700">
+                        <i class="fa-solid fa-mobile-screen mr-1.5"></i> Mobil munkalapok
+                    </a>
                     <button onclick="showPage('home')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-sm font-semibold border border-slate-700">
                         <i class="fa-solid fa-globe mr-1.5"></i> Vissza a Weboldalra
                     </button>
@@ -1047,6 +1053,25 @@
                     <button type="button" onclick="loginDemoAdmin()" class="text-xs text-amber-400 hover:underline">
                         <i class="fa-solid fa-user-shield mr-1"></i> Gyors belépés Demo Adminisztrátorként
                     </button>
+                </div>
+            </form>
+
+            <form id="auth-form-2fa" onsubmit="handleTwoFactorSubmit(event)" class="space-y-4 hidden" aria-labelledby="auth-2fa-title">
+                <h3 id="auth-2fa-title" class="text-lg font-bold text-white"><i class="fa-solid fa-shield-halved mr-2 text-amber-400"></i>Kétlépcsős azonosítás</h3>
+                <p class="text-xs text-slate-400">Adja meg a hitelesítő alkalmazás (pl. Google Authenticator, Microsoft Authenticator) 6 jegyű kódját.</p>
+                <div id="auth-2fa-code-wrap">
+                    <label for="auth-2fa-code" class="block text-xs text-slate-300 mb-1">Ellenőrző kód</label>
+                    <input type="text" id="auth-2fa-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-lg tracking-widest text-center" placeholder="123456">
+                </div>
+                <div id="auth-2fa-recovery-wrap" class="hidden">
+                    <label for="auth-2fa-recovery" class="block text-xs text-slate-300 mb-1">Helyreállító kód</label>
+                    <input type="text" id="auth-2fa-recovery" autocomplete="off" maxlength="20" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-sm tracking-wider" placeholder="XXXX-XXXX">
+                </div>
+                <p id="auth-2fa-error" class="text-xs text-rose-300 hidden" role="alert"></p>
+                <button type="submit" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors">Ellenőrzés és belépés</button>
+                <div class="flex justify-between text-xs">
+                    <button type="button" onclick="toggleTwoFactorRecovery()" id="auth-2fa-toggle" class="text-amber-400 hover:underline">Helyreállító kódot használok</button>
+                    <button type="button" onclick="cancelTwoFactor()" class="text-slate-400 hover:text-white">Mégse</button>
                 </div>
             </form>
 
@@ -2483,6 +2508,7 @@
         }
 
         function switchAuthTab(tab) {
+            document.getElementById('auth-form-2fa')?.classList.add('hidden');
             if (tab === 'login') {
                 document.getElementById('auth-form-login').classList.remove('hidden');
                 document.getElementById('auth-form-register').classList.add('hidden');
@@ -2502,17 +2528,89 @@
             const password = document.getElementById('login-password').value;
 
             try {
-                await apiFetch(`${API.auth}?action=login`, {
+                const data = await apiFetch(`${API.auth}?action=login`, {
                     method: 'POST',
                     body: JSON.stringify({ email, password })
                 });
-                await refreshData();
-                closeAuthRequiredModal(false);
-                closeAuthModal();
-                showToast('Sikeres bejelentkezés!');
-                runPendingProtectedAction();
+                if (data.csrf_token) state.csrfToken = data.csrf_token;
+                if (data.two_factor_required) {
+                    showTwoFactorStep({ successMessage: 'Sikeres bejelentkezés!', openAdmin: false });
+                    return;
+                }
+                await finishLogin(data, 'Sikeres bejelentkezés!', false);
             } catch (err) {
                 showToast(err.message);
+            }
+        }
+
+        let twoFactorContext = null;
+
+        async function finishLogin(data, message, openAdmin) {
+            if (data && data.csrf_token) state.csrfToken = data.csrf_token;
+            await refreshData();
+            closeAuthRequiredModal(false);
+            closeAuthModal();
+            showToast(message);
+            runPendingProtectedAction();
+            if (openAdmin) showPage('admin');
+            if (data && data.two_factor_setup_required) {
+                showToast('A kétlépcsős azonosítás beállítása kötelező. Átirányítás a beállításhoz…');
+                setTimeout(() => { window.location.href = '/admin-center.html#security'; }, 1500);
+            }
+        }
+
+        function showTwoFactorStep(context) {
+            twoFactorContext = context;
+            document.getElementById('auth-form-login').classList.add('hidden');
+            document.getElementById('auth-form-register').classList.add('hidden');
+            document.getElementById('auth-form-2fa').classList.remove('hidden');
+            document.getElementById('auth-modal').classList.remove('hidden');
+            document.getElementById('auth-2fa-error').classList.add('hidden');
+            document.getElementById('auth-2fa-code').value = '';
+            document.getElementById('auth-2fa-recovery').value = '';
+            setTimeout(() => document.getElementById('auth-2fa-code').focus(), 50);
+        }
+
+        function toggleTwoFactorRecovery() {
+            const codeWrap = document.getElementById('auth-2fa-code-wrap');
+            const recWrap = document.getElementById('auth-2fa-recovery-wrap');
+            const useRecovery = recWrap.classList.contains('hidden');
+            codeWrap.classList.toggle('hidden', useRecovery);
+            recWrap.classList.toggle('hidden', !useRecovery);
+            document.getElementById('auth-2fa-toggle').textContent = useRecovery ? 'Hitelesítő kódot használok' : 'Helyreállító kódot használok';
+            document.getElementById(useRecovery ? 'auth-2fa-recovery' : 'auth-2fa-code').focus();
+        }
+
+        async function cancelTwoFactor() {
+            try {
+                await apiFetch(`${API.auth}?action=cancel_2fa`, { method: 'POST', body: JSON.stringify({}) });
+            } catch (_) {}
+            twoFactorContext = null;
+            document.getElementById('auth-form-2fa').classList.add('hidden');
+            switchAuthTab('login');
+        }
+
+        async function handleTwoFactorSubmit(e) {
+            e.preventDefault();
+            const useRecovery = !document.getElementById('auth-2fa-recovery-wrap').classList.contains('hidden');
+            const body = useRecovery
+                ? { recovery_code: document.getElementById('auth-2fa-recovery').value.trim() }
+                : { code: document.getElementById('auth-2fa-code').value.replace(/\s+/g, '') };
+            const errorEl = document.getElementById('auth-2fa-error');
+            errorEl.classList.add('hidden');
+            const data = await apiFetch(`${API.auth}?action=verify_2fa`, { method: 'POST', body: JSON.stringify(body), allowErrorPayload: true });
+            if (data.__httpOk && data.ok !== false) {
+                const ctx = twoFactorContext || { successMessage: 'Sikeres bejelentkezés!', openAdmin: false };
+                twoFactorContext = null;
+                document.getElementById('auth-form-2fa').classList.add('hidden');
+                switchAuthTab('login');
+                await finishLogin(data, ctx.successMessage, ctx.openAdmin);
+                return;
+            }
+            errorEl.textContent = data.error || 'Hibás kód.';
+            errorEl.classList.remove('hidden');
+            if (data.code === 'two_factor_expired') {
+                setTimeout(() => { document.getElementById('auth-form-2fa').classList.add('hidden'); switchAuthTab('login'); }, 1500);
             }
         }
 
@@ -2541,16 +2639,16 @@
             const password = prompt('Demo admin jelszó:');
             if (!password) return;
             try {
-                await apiFetch(`${API.auth}?action=login`, {
+                const data = await apiFetch(`${API.auth}?action=login`, {
                     method: 'POST',
                     body: JSON.stringify({ email: 'admin@tamasbau.hu', password })
                 });
-                await refreshData();
-                closeAuthRequiredModal(false);
-                closeAuthModal();
-                showToast('Bejelentkezve Adminisztrátorként!');
-                runPendingProtectedAction();
-                showPage('admin');
+                if (data.csrf_token) state.csrfToken = data.csrf_token;
+                if (data.two_factor_required) {
+                    showTwoFactorStep({ successMessage: 'Bejelentkezve Adminisztrátorként!', openAdmin: true });
+                    return;
+                }
+                await finishLogin(data, 'Bejelentkezve Adminisztrátorként!', true);
             } catch (err) {
                 showToast('Demo admin bejelentkezés sikertelen: ' + err.message);
             }

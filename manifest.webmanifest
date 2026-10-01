@@ -1,7 +1,9 @@
 {
   "name": "Tamás Bau",
   "short_name": "Tamás Bau",
+  "lang": "hu",
   "start_url": "/index.html",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#f59e0b",
@@ -9,7 +11,22 @@
     {
       "src": "/pwa-icon.svg",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Mobil munkalapok",
+      "short_name": "Munkalapok",
+      "url": "/mobile.html",
+      "icons": [{ "src": "/pwa-icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Admin központ",
+      "short_name": "Admin",
+      "url": "/admin-center.html",
+      "icons": [{ "src": "/pwa-icon.svg", "sizes": "any", "type": "image/svg+xml" }]
     }
   ]
 }

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#f59e0b">
+  <title>Értékelés | Tamás Bau</title>
+  <link rel="icon" href="/pwa-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Ugrás a tartalomra</a>
+  <header class="tb-header">
+    <a class="tb-brand" href="/">Tamás Bau</a>
+    <span class="muted">Ügyfélértékelés</span>
+  </header>
+  <main id="main">
+    <div id="review-root" aria-live="polite"><p class="tb-state">⏳ Betöltés…</p></div>
+    <form id="review-form" class="card hidden" novalidate>
+      <h1 id="review-title">Hogyan értékeli munkánkat?</h1>
+      <p class="muted" id="review-intro"></p>
+      <fieldset>
+        <legend>Értékelés (1–5 csillag) *</legend>
+        <div class="stars" role="radiogroup" aria-label="Csillagos értékelés">
+          <input type="radio" name="rating" id="star5" value="5"><label for="star5" title="5 – Kiváló">★<span class="sr-only">5 csillag – kiváló</span></label>
+          <input type="radio" name="rating" id="star4" value="4"><label for="star4" title="4 – Jó">★<span class="sr-only">4 csillag – jó</span></label>
+          <input type="radio" name="rating" id="star3" value="3"><label for="star3" title="3 – Közepes">★<span class="sr-only">3 csillag – közepes</span></label>
+          <input type="radio" name="rating" id="star2" value="2"><label for="star2" title="2 – Gyenge">★<span class="sr-only">2 csillag – gyenge</span></label>
+          <input type="radio" name="rating" id="star1" value="1"><label for="star1" title="1 – Rossz">★<span class="sr-only">1 csillag – rossz</span></label>
+        </div>
+      </fieldset>
+      <label for="feedback">Szöveges vélemény (opcionális)</label>
+      <textarea id="feedback" maxlength="4000"></textarea>
+      <label class="check"><input type="checkbox" id="consent"> <span>Hozzájárulok, hogy véleményem keresztnevemmel a weboldalon megjelenjen (moderálás után).</span></label>
+      <p id="review-error" class="tb-state tb-state-error hidden" role="alert"></p>
+      <button type="submit" class="tb-btn tb-btn-primary tb-btn-lg mt" id="review-submit">Értékelés elküldése</button>
+      <p class="small muted">Adatkezelés: <a href="/adatkezelesi-tajekoztato.html">adatkezelési tájékoztató</a>.</p>
+    </form>
+  </main>
+  <script src="/assets/js/common.js"></script>
+  <script src="/assets/js/review.js"></script>
+</body>
+</html>
