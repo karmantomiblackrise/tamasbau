@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/checkout-payment.php';
+require_once __DIR__ . '/platform-lib.php';
 
 function order_statuses(): array
 {
@@ -569,6 +570,9 @@ if ($method === 'POST') {
             ]);
 
             $mailWarning = send_order_status_email($id, (int) $current['user_id'], $status, $nextTrackingNumber ?: null, $nextTrackingUrl ?: null);
+            if ($fromStatus !== $status) {
+                tb_safe_event('order_status', ['order_id' => $id, 'to' => $status]);
+            }
             send_json(['ok' => true, 'warning' => $mailWarning]);
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {

@@ -2,12 +2,13 @@
 declare(strict_types=1);
 
 load_env_file(dirname(__DIR__) . '/.env');
+install_error_handlers();
 $composerAutoload = dirname(__DIR__) . '/vendor/autoload.php';
 if (is_file($composerAutoload) && is_readable($composerAutoload)) {
     require_once $composerAutoload;
 }
 
-if (session_status() !== PHP_SESSION_ACTIVE) {
+if (PHP_SAPI !== 'cli' && session_status() !== PHP_SESSION_ACTIVE) {
     $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['SERVER_PORT'] ?? '') === '443');
     ini_set('session.use_strict_mode', '1');
     session_set_cookie_params([
@@ -21,7 +22,9 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
 
-apply_security_headers();
+if (PHP_SAPI !== 'cli') {
+    apply_security_headers();
+}
 
 function apply_security_headers(): void
 {
@@ -34,6 +37,103 @@ function apply_security_headers(): void
     if ($isApiRequest) {
         header("Content-Security-Policy: default-src 'self'; object-src 'none'; frame-ancestors 'self'; base-uri 'self'");
     }
+}
+
+function install_error_handlers(): void
+{
+    static $installed = false;
+    if ($installed) {
+        return;
+    }
+    $installed = true;
+    $isDevelopment = strtolower((string) (getenv('APP_ENV') ?: ($_ENV['APP_ENV'] ?? 'production'))) === 'development';
+    ini_set('display_errors', $isDevelopment && PHP_SAPI === 'cli' ? '1' : '0');
+    ini_set('log_errors', '1');
+
+    set_exception_handler(static function (Throwable $e): void {
+        $errorId = app_log_error('uncaught_exception', $e);
+        app_emit_fatal_json($errorId, $e->getMessage());
+    });
+
+    register_shutdown_function(static function (): void {
+        $error = error_get_last();
+        if (!$error || !in_array($error['type'] ?? 0, [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) {
+            return;
+        }
+        $errorId = app_log_error('fatal_error', null, [
+            'message' => (string) ($error['message'] ?? ''),
+            'file' => basename((string) ($error['file'] ?? '')),
+            'line' => (int) ($error['line'] ?? 0),
+        ]);
+        app_emit_fatal_json($errorId, (string) ($error['message'] ?? ''));
+    });
+}
+
+function app_emit_fatal_json(string $errorId, string $debugMessage = ''): void
+{
+    if (PHP_SAPI === 'cli') {
+        fwrite(STDERR, 'Hiba (azonosító: ' . $errorId . '): ' . redact_secrets($debugMessage) . PHP_EOL);
+        return;
+    }
+    if (headers_sent()) {
+        return;
+    }
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    $payload = [
+        'ok' => false,
+        'error' => 'Szerverhiba történt. Hibaazonosító: ' . $errorId . ' (részletek a logs/app-error.log fájlban).',
+        'error_id' => $errorId,
+    ];
+    if (function_exists('app_is_development') && app_is_development()) {
+        $payload['debug'] = redact_secrets($debugMessage);
+    }
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+
+function redact_secrets(string $text): string
+{
+    $secretKeys = ['TB_DB_PASS', 'MAIL_PASSWORD', 'TB_MAIL_PASSWORD', 'TB_APP_KEY', 'TB_BILLINGO_API_KEY', 'TB_SZAMLAZZ_AGENT_KEY', 'TB_IP_HASH_SALT', 'TB_SESSION_HASH_SALT'];
+    foreach ($secretKeys as $key) {
+        $value = $_ENV[$key] ?? getenv($key);
+        if (is_string($value) && strlen($value) >= 4) {
+            $text = str_replace($value, '[REDACTED]', $text);
+        }
+    }
+    $text = preg_replace('/(password|passwd|pwd|secret|token|api[_-]?key|authorization)(\s*[=:]\s*)("[^"]*"|\'[^\']*\'|[^\s,;&]+)/i', '$1$2[REDACTED]', $text) ?? $text;
+    $text = preg_replace('/(using password:\s*)(YES|NO)/i', '$1[REDACTED]', $text) ?? $text;
+    return $text;
+}
+
+function app_log_error(string $context, ?Throwable $e = null, array $extra = []): string
+{
+    $errorId = bin2hex(random_bytes(6));
+    $entry = [
+        'time' => date('c'),
+        'error_id' => $errorId,
+        'context' => $context,
+        'script' => basename((string) ($_SERVER['SCRIPT_NAME'] ?? 'cli')),
+        'method' => (string) ($_SERVER['REQUEST_METHOD'] ?? 'CLI'),
+    ];
+    if ($e) {
+        $entry['type'] = get_class($e);
+        $entry['message'] = redact_secrets($e->getMessage());
+        $entry['file'] = basename($e->getFile());
+        $entry['line'] = $e->getLine();
+    }
+    foreach ($extra as $key => $value) {
+        $entry[(string) $key] = is_string($value) ? redact_secrets($value) : $value;
+    }
+    $dir = dirname(__DIR__) . '/logs';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+    $line = json_encode($entry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if (@file_put_contents($dir . '/app-error.log', $line . "\n", FILE_APPEND | LOCK_EX) === false) {
+        error_log('[tamasbau] ' . $line);
+    }
+    return $errorId;
 }
 
 function load_env_file(string $path): void
@@ -240,6 +340,8 @@ function send_json(array $data, int $status = 200): void
 {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store, private');
+    header('Pragma: no-cache');
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
@@ -381,12 +483,108 @@ function current_user(): ?array
         return null;
     }
 
+    if (!session_record_is_active((int) $user['id'])) {
+        unset($_SESSION['user_id']);
+        $cached = true;
+        $cachedUser = null;
+        $cachedForUserId = null;
+        return null;
+    }
+
     $user['id'] = (int) $user['id'];
     $user['is_active'] = (int) $user['is_active'];
     $cached = true;
     $cachedUser = $user;
     $cachedForUserId = $sessionUserId;
     return $cachedUser;
+}
+
+function auth_session_hash(): string
+{
+    $salt = (string) env_or_fallback(['TB_SESSION_HASH_SALT', 'TB_APP_KEY', 'TB_APP_NAME'], 'tamasbau');
+    return hash('sha256', $salt . '|' . session_id());
+}
+
+function auth_ip_hash(): string
+{
+    $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+    $salt = (string) env_or_fallback(['TB_IP_HASH_SALT', 'TB_APP_KEY', 'TB_APP_NAME'], 'tamasbau');
+    return hash('sha256', $salt . '|' . $ip);
+}
+
+/**
+ * A user_sessions táblában visszavont munkamenet azonnal érvénytelen.
+ * Ha a tábla még nem létezik (régi telepítés), a bejelentkezés nem törik el.
+ */
+function session_record_is_active(int $userId): bool
+{
+    if (session_status() !== PHP_SESSION_ACTIVE || session_id() === '') {
+        return true;
+    }
+    try {
+        $stmt = db()->prepare('SELECT id, user_id, is_revoked FROM user_sessions WHERE session_token_hash = ? LIMIT 1');
+        $stmt->execute([auth_session_hash()]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return true;
+        }
+        if ((int) $row['user_id'] !== $userId || (int) $row['is_revoked'] === 1) {
+            return false;
+        }
+        $lastTouch = (int) ($_SESSION['tb_session_touch'] ?? 0);
+        if ($lastTouch < time() - 300) {
+            $_SESSION['tb_session_touch'] = time();
+            $touch = db()->prepare('UPDATE user_sessions SET last_seen_at = NOW() WHERE id = ?');
+            $touch->execute([(int) $row['id']]);
+        }
+    } catch (Throwable $e) {
+        return true;
+    }
+    return true;
+}
+
+function admin_two_factor_policy(): string
+{
+    $policy = strtolower(trim((string) env_or_fallback(['TB_ADMIN_2FA_POLICY'], 'optional')));
+    return in_array($policy, ['optional', 'required'], true) ? $policy : 'optional';
+}
+
+function admin_two_factor_required_roles(): array
+{
+    return ['admin', 'superadmin'];
+}
+
+function user_two_factor_enabled(int $userId): bool
+{
+    try {
+        $stmt = db()->prepare('SELECT is_enabled FROM user_totp_settings WHERE user_id = ? LIMIT 1');
+        $stmt->execute([$userId]);
+        $row = $stmt->fetch();
+        return $row && (int) $row['is_enabled'] === 1;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function user_must_setup_two_factor(array $user): bool
+{
+    return admin_two_factor_policy() === 'required'
+        && in_array((string) ($user['role'] ?? 'user'), admin_two_factor_required_roles(), true)
+        && !user_two_factor_enabled((int) $user['id']);
+}
+
+function enforce_admin_two_factor_policy(array $user): void
+{
+    if (defined('TB_TWO_FACTOR_SETUP_CONTEXT')) {
+        return;
+    }
+    if (user_must_setup_two_factor($user)) {
+        send_json([
+            'ok' => false,
+            'error' => 'A rendszergazdai fiókokhoz kötelező a kétlépcsős azonosítás (2FA). Kérjük, állítsa be a Vezérlőközpont → Biztonság menüben.',
+            'code' => 'two_factor_setup_required',
+        ], 403);
+    }
 }
 
 function require_login(): array
@@ -396,6 +594,7 @@ function require_login(): array
         send_json(['ok' => false, 'error' => 'Bejelentkezés szükséges.'], 401);
     }
     validate_csrf_token();
+    enforce_admin_two_factor_policy($user);
     return $user;
 }
 

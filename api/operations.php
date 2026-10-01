@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/platform-lib.php';
 
 function operations_roles_with_access(): array
 {
@@ -379,6 +380,9 @@ function post_crm(array $user, array $payload): void
         }
 
         log_admin_activity((int) $admin['id'], 'crm_quote_created', 'crm_quote', $quoteId, ['status' => $status]);
+        if ($status !== 'draft') {
+            tb_safe_event('crm_quote_status', ['crm_quote_id' => $quoteId, 'to' => $status]);
+        }
         send_json(['ok' => true, 'id' => $quoteId], 201);
     }
 
@@ -411,6 +415,9 @@ function post_crm(array $user, array $payload): void
         }
 
         log_admin_activity((int) $admin['id'], 'crm_quote_status_changed', 'crm_quote', $quoteId, ['from' => $quote['status'], 'to' => $nextStatus]);
+        if ((string) $quote['status'] !== $nextStatus) {
+            tb_safe_event('crm_quote_status', ['crm_quote_id' => $quoteId, 'to' => $nextStatus]);
+        }
         send_json(['ok' => true]);
     }
 
@@ -443,6 +450,7 @@ function post_crm(array $user, array $payload): void
             $update->execute(['sent', $quoteId]);
             $log = db()->prepare('INSERT INTO crm_quote_status_logs (crm_quote_id, from_status, to_status, changed_by_user_id, note) VALUES (?, ?, ?, ?, ?)');
             $log->execute([$quoteId, 'draft', 'sent', (int) $admin['id'], 'Emlékeztető küldése']);
+            tb_safe_event('crm_quote_status', ['crm_quote_id' => $quoteId, 'to' => 'sent']);
         }
         send_json(['ok' => true, 'warning' => $warning]);
     }
@@ -573,6 +581,7 @@ function post_projects_endpoint(array $payload): void
         }
         insert_project_timeline($id, (int) $admin['id'], 'note', 'Projekt adatok frissítve.');
         log_admin_activity((int) $admin['id'], 'project_updated', 'project', $id, ['status' => $status]);
+        tb_safe_event('project_status', ['project_id' => $id, 'to' => $status]);
         send_json(['ok' => true]);
     }
 
@@ -596,6 +605,7 @@ function post_projects_endpoint(array $payload): void
 
         insert_project_timeline($projectId, (int) $admin['id'], 'status_change', $note !== '' ? $note : null, null, null);
         log_admin_activity((int) $admin['id'], 'project_status_changed', 'project', $projectId, ['from' => $row['status'], 'to' => $status]);
+        tb_safe_event('project_status', ['project_id' => $projectId, 'to' => $status]);
         send_json(['ok' => true]);
     }
 
@@ -761,6 +771,9 @@ function post_work_orders_endpoint(array $payload): void
         $stmt = db()->prepare('UPDATE work_orders SET project_id = ?, user_id = ?, title = ?, location = ?, work_type = ?, description = ?, assigned_to_user_id = ?, status = ?, priority = ?, planned_minutes = ?, actual_minutes = ?, due_at = ?, handover_ready = ?, client_signature_name = ?, closed_at = ? WHERE id = ?');
         $stmt->execute([$projectId, $userId, $title, $location !== '' ? $location : null, $workType !== '' ? $workType : null, $description !== '' ? $description : null, $assignedTo, $status, $priority, $plannedMinutes, $actualMinutes, $dueAt, $handoverReady, $clientSignature !== '' ? $clientSignature : null, $closedAt, $id]);
         log_admin_activity((int) $user['id'], 'work_order_updated', 'work_order', $id, ['status' => $status, 'priority' => $priority]);
+        if ($status === 'done' && (string) $existing['status'] !== 'done') {
+            tb_safe_event('work_order_closed', ['work_order_id' => $id]);
+        }
         send_json(['ok' => true]);
     }
 
@@ -816,6 +829,9 @@ function post_work_orders_endpoint(array $payload): void
         $stmt = db()->prepare($sql);
         $stmt->execute($args);
         log_admin_activity((int) $user['id'], 'work_order_quick_action', 'work_order', $id, ['status' => $status, 'assigned_to' => $assignedTo, 'due_at' => $dueAt]);
+        if ($status === 'done' && $currentStatus !== 'done') {
+            tb_safe_event('work_order_closed', ['work_order_id' => $id]);
+        }
         send_json(['ok' => true]);
     }
 
@@ -1147,6 +1163,9 @@ function post_service_endpoint(array $user, array $payload): void
             $assignedTo = null;
         }
 
+        if ($slaDueAt === null || !$isAdmin) {
+            $slaDueAt = tb_sla_due_at($priority);
+        }
         $stmt = db()->prepare('INSERT INTO service_tickets (user_id, project_id, work_order_id, subject, description, location, priority, status, warranty_active, warranty_start, warranty_end, installation_reference, assigned_to_user_id, sla_due_at, follow_up_at, reopened_until, closed_at, created_by_customer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         $closedAt = in_array($status, ['resolved', 'closed'], true) ? date('Y-m-d H:i:s') : null;
         $stmt->execute([$userId, $projectId, $workOrderId, $subject, $description, $location !== '' ? $location : null, $priority, $status, $warrantyActive, $warrantyStart, $warrantyEnd, $installationRef !== '' ? $installationRef : null, $assignedTo, $slaDueAt, $followUpAt, $reopenedUntil, $closedAt, $isAdmin ? 0 : 1]);
@@ -1160,6 +1179,11 @@ function post_service_endpoint(array $user, array $payload): void
 
         if ($userId) {
             operations_create_notification((int) $userId, 'user', 'Szerviz ticket rögzítve', 'Ticket #' . $ticketId . ': ' . $subject, '/account#service');
+        }
+
+        tb_safe_event('ticket_created', ['ticket_id' => $ticketId, 'priority' => $priority]);
+        if ($priority === 'emergency') {
+            tb_sla_emergency_alert($ticketId);
         }
 
         send_json(['ok' => true, 'id' => $ticketId], 201);
@@ -1223,6 +1247,13 @@ function post_service_endpoint(array $user, array $payload): void
         $update = db()->prepare($sql);
         $update->execute($args);
 
+        if ($priority !== '' && $priority !== (string) $ticket['priority']) {
+            insert_service_ticket_history($ticketId, (int) $user['id'], 'priority_change', (string) $ticket['priority'], $priority, $note !== '' ? $note : null);
+            tb_safe_event('ticket_priority', ['ticket_id' => $ticketId, 'priority' => $priority]);
+            if ($priority === 'emergency') {
+                tb_sla_emergency_alert($ticketId);
+            }
+        }
         if ($status !== '' && $status !== (string) $ticket['status']) {
             insert_service_ticket_history($ticketId, (int) $user['id'], 'status_change', (string) $ticket['status'], $status, $note !== '' ? $note : null);
         }
