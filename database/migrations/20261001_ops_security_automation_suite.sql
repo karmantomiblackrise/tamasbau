@@ -93,7 +93,7 @@ SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE service_tickets ADD COLUMN 
 PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
 SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE service_tickets ADD COLUMN escalation_level TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER escalated_at', 'SELECT 1') FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'service_tickets' AND COLUMN_NAME = 'escalation_level');
 PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
-SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE service_tickets ADD INDEX idx_service_tickets_sla (status, sla_due_at)', 'SELECT 1') FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'service_tickets' AND INDEX_NAME = 'idx_service_tickets_sla');
+SET @tb_sql := (SELECT IF(COUNT(*) = 0, 'ALTER TABLE service_tickets ADD INDEX idx_service_tickets_status_sla (status, sla_due_at)', 'SELECT 1') FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'service_tickets' AND INDEX_NAME = 'idx_service_tickets_status_sla');
 PREPARE tb_stmt FROM @tb_sql; EXECUTE tb_stmt; DEALLOCATE PREPARE tb_stmt;
 
 -- ---------- H) Számlázó adapter ----------

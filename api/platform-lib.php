@@ -25,7 +25,7 @@ require_once __DIR__ . '/lib/health.php';
  */
 function tb_exception_http_status(Throwable $e): int
 {
-    if ($e instanceof InvalidArgumentException) {
+    if ($e instanceof InvalidArgumentException || $e instanceof TbWorkflowPermanentError) {
         return 422;
     }
     if ($e instanceof DomainException) {

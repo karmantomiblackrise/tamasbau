@@ -1438,7 +1438,8 @@ function post_files_endpoint(array $user, array $payload): void
         send_json(['ok' => false, 'error' => 'A célmappa nem hozható létre.'], 500);
     }
 
-    $htaccessContent = "Options -Indexes\nphp_flag engine off\n<FilesMatch \"\\.(php|phtml|php3|php4|php5|phar)$\">\n  Deny from all\n</FilesMatch>\n";
+    // php_flag csak mod_php alatt érvényes; PHP-FPM / LiteSpeed alatt IfModule nélkül 500-as hibát okozna.
+    $htaccessContent = "Options -Indexes\n<IfModule mod_php.c>\n  php_flag engine off\n</IfModule>\n<FilesMatch \"\\.(php\\d?|phtml|phar|pl|py|cgi|sh|html?|svg|js)$\">\n  <IfModule mod_authz_core.c>\n    Require all denied\n  </IfModule>\n  <IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n  </IfModule>\n</FilesMatch>\n";
     $htaccessRootPath = dirname(__DIR__) . '/uploads/project-files/.htaccess';
     if (!is_file($htaccessRootPath)) {
         $written = @file_put_contents($htaccessRootPath, $htaccessContent);

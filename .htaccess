@@ -1,0 +1,43 @@
+# Tamás Bau – webszerver védelem (Apache / LiteSpeed, cPanel kompatibilis)
+Options -Indexes
+DirectoryIndex index.html
+
+# Rejtett és érzékeny fájlok tiltása (.env, .git, composer, SQL, log, backup)
+<FilesMatch "^\.">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+<FilesMatch "(^composer\.(json|lock)$|\.(sql|log|bak|backup|old|orig|swp|dist|ini|sh|md)$)">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# Nem publikus könyvtárak (404, hogy a létezésük se derüljön ki)
+<IfModule mod_alias.c>
+  RedirectMatch 404 ^/(\.git|database|tests|scripts|logs|vendor|api/lib|api/vendor)(/|$)
+  RedirectMatch 404 ^/api/(config\.local|config\.example|cron)\.php$
+</IfModule>
+
+# Biztonsági fejlécek statikus fájlokra is (a PHP API saját fejléceket küld)
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(self)"
+  <FilesMatch "^(service-worker\.js|manifest\.webmanifest)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  <FilesMatch "^(admin-center|mobile)\.html$">
+    Header set Cache-Control "no-store, private"
+  </FilesMatch>
+</IfModule>

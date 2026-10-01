@@ -681,7 +681,12 @@ function platform_post_reviews(array $user, array $payload): void
     }
     if ($action === 'request_review') {
         $sourceType = platform_enum(clean_string($payload['source_type'] ?? '', 20), ['project', 'work_order', 'service_ticket'], 'forrás típus');
-        $result = tb_review_request_create($sourceType, (int) ($payload['source_id'] ?? 0));
+        try {
+            $result = tb_review_request_create($sourceType, (int) ($payload['source_id'] ?? 0));
+        } catch (TbReviewMailException $e) {
+            log_admin_activity((int) $admin['id'], 'review_request_mail_failed', $sourceType, (int) ($payload['source_id'] ?? 0));
+            send_json(['ok' => false, 'code' => 'mail_failed', 'error' => $e->getMessage() . ' Az alábbi linket kézzel is továbbíthatja az ügyfélnek.', 'manual_url' => $e->manualUrl], 502);
+        }
         log_admin_activity((int) $admin['id'], 'review_request_manual', $sourceType, (int) ($payload['source_id'] ?? 0));
         send_json(['ok' => true, 'result' => $result]);
     }

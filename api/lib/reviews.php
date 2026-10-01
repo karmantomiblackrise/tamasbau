@@ -8,6 +8,18 @@ declare(strict_types=1);
 
 const TB_REVIEW_REQUEST_DAYS = 30;
 
+/**
+ * E-mail küldési hiba értékeléskérésnél: a workflow újrapróbálja, az admin felület
+ * kézi továbbításhoz megkapja a linket.
+ */
+final class TbReviewMailException extends RuntimeException
+{
+    public function __construct(string $message, public readonly string $manualUrl)
+    {
+        parent::__construct($message);
+    }
+}
+
 function tb_review_recipient(string $sourceType, int $sourceId): ?array
 {
     if ($sourceType === 'project') {
@@ -74,7 +86,7 @@ function tb_review_request_create(string $sourceType, int $sourceId): array
     } catch (Throwable $e) {
         $error = clean_string(redact_secrets($e->getMessage()), 480);
         db()->prepare("UPDATE review_requests SET status = 'send_failed', email_error = ? WHERE id = ?")->execute([$error, $requestId]);
-        throw new RuntimeException('Értékeléskérő e-mail küldése sikertelen: ' . $error);
+        throw new TbReviewMailException('Értékeléskérő e-mail küldése sikertelen: ' . $error, $url);
     }
     return ['review_request_id' => $requestId, 'status' => 'sent'];
 }
