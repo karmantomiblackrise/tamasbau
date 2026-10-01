@@ -13,7 +13,8 @@
   const type = params.get('type') || '';
   const id = parseInt(params.get('id') || '0', 10);
   const back = params.get('back');
-  const safeBack = back && back.startsWith('/') && !back.startsWith('//') ? back : '/';
+  const BACK_TARGETS = ['/', '/mobile.html', '/admin-center.html', '/index.html'];
+  const safeBack = back && (BACK_TARGETS.includes(back) || /^\/mobile\.html#\/wo\/\d+$/.test(back)) ? back : '/';
   $('#back-link').href = safeBack;
   $('#done-back').href = safeBack;
 
